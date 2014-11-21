@@ -55,7 +55,7 @@ void loop()
     for (int j = 0; j < numBlocks; j++)
     {
       //Filter out really small blocks(which is currently our only filter for blocks) and move the robot.
-      if (pixy.blocks[j].width > 30)
+      if (pixy.blocks[j].width > 30 && pixy.blocks[j].width < 50)
       {
         numGoodBlocks++; //We now have at least one good block, increment number of good blocks
 

@@ -2,16 +2,16 @@
 #include "Drivetrain.h"
 
 /**
- * Constructor. Sets the ports for all the motors and power for the motors.
- * center: The center of where the robot should go
- * deadZone: What should be included in the "center". (how big the center should be)
- * power: How much power to apply to the motors.
- * stepTimes[15]: How much time (as an element of the array)should be spent at each step of rotation.
+ * Constructor. Sets the pins for all the motors.
+ * center: Where the robot aims when it detects a block. Valid values are 0 - 319.
+ * deadZone: How big the "center" of the robot is. Smaller values will cause robot to wiggle more.
+ * power: How much power for wheel motors. Valid values are 0 - 255.
+ * *stepTimes: An array where each element is how much time in milliseconds should be spent at each step of rotation.
  */
-Drivetrain::Drivetrain(byte leftMotorForward, byte leftMotorBackward,
-                       byte rightMotorForward, byte rightMotorBackward,
+Drivetrain::Drivetrain(const byte leftMotorForward, const byte leftMotorBackward,
+                       const byte rightMotorForward, const byte rightMotorBackward,
                        int center, int deadZone, int power,
-                       int stepTimes[15])
+                       int *stepTimes)
 {
   //Set the pinmode of the motor ports to be output.
   pinMode(leftMotorForward, OUTPUT);
@@ -41,33 +41,33 @@ Drivetrain::~Drivetrain()
  ******************/
 
 /**
- * Tells the motor to keep the center of the block aligned with the requested center
- * set in the Drivetrain constructor
+ * Gives power to motors, keeping the center of the block aligned with the requested center
+ * set in the Drivetrain constructor.
  */
 void Drivetrain::goToFish(Block block)
 {
   //If the center of the block is on the left side of the camera
   if (block.x < (_center - _deadZone))
   {
-    Serial.print("turning left\n");
+	Serial.print("turning left\n");
     turnLeft(_power);
   }
   //If the center of the block is on the right side of the camera
   else if (block.x > (_center + _deadZone))
   {
-    Serial.print("turning right\n");
+	Serial.print("turning right\n");
     turnRight(_power);
   }
   //The center of the block is in the center of the camera
   else //Dead zone
   {
-    Serial.print("not turning: Dead Zone\n");
+	Serial.print("going straight\n");
     goStraight(_power);
   }
 }
 
 /**
- * Rotates an amount based on what step we're on
+ * Rotates an amount based on what step we're on. StepNum > 0
  */
 void Drivetrain::rotate(int stepNum)
 {
@@ -105,7 +105,7 @@ void Drivetrain::rotate(int stepNum)
       delay(_stepTimes[11]);
       stopMotors();
       break;
-    //TODO: more steps than I first thought, will need to finish the rest;
+    //TODO more steps than I first thought, will need to finish the rest;
     // there are two steps for each bin
     case 13: turnLeft(_power);
       delay(_stepTimes[12]);
@@ -127,7 +127,7 @@ void Drivetrain::rotate(int stepNum)
 }
 
 /**
- * Tells all motors to turn off.
+ * Gives all motors 0 power.
  */
 void Drivetrain::stopMotors()
 {
@@ -137,39 +137,35 @@ void Drivetrain::stopMotors()
   analogWrite(_leftMotorBackward, 0);
 }
 
-/*******************
- * Private Methods *
- *******************/
-
 /**
- * Tell the motors to drive forward at the same power. Since our motors move at different rates given the same power, it will inevitably turn. Need encoders or a reference
- * (like the pixy) to go in a straight line
+ * Gives all forward motors power. Since our motors move at different rates given the same power, it will inevitably turn. 
+ * Need encoders or a reference (like the pixy) to go in a straight line.
  */
-void Drivetrain::goStraight(int goSpeed)
+void Drivetrain::goStraight(int power)
 {
-  analogWrite(_rightMotorForward, goSpeed);
+  analogWrite(_rightMotorForward, power);
   analogWrite(_rightMotorBackward, 0);
-  analogWrite(_leftMotorForward, goSpeed);
+  analogWrite(_leftMotorForward, power);
   analogWrite(_leftMotorBackward, 0);
 }
 
 /**
- * Tells the left motor to power forward.
+ * Give the left forward motor power.
  */
-void Drivetrain::turnRight(int goSpeed)
+void Drivetrain::turnRight(int power)
 {
   analogWrite(_rightMotorForward, 0);
   analogWrite(_rightMotorBackward, 0);
-  analogWrite(_leftMotorForward, goSpeed);
+  analogWrite(_leftMotorForward, power);
   analogWrite(_leftMotorBackward, 0);
 }
 
 /**
- * Tells the right motor to power forward.
+ * Give the right forward motor power.
  */
-void Drivetrain::turnLeft(int goSpeed)
+void Drivetrain::turnLeft(int power)
 {
-  analogWrite(_rightMotorForward, goSpeed);
+  analogWrite(_rightMotorForward, power);
   analogWrite(_rightMotorBackward, 0);
   analogWrite(_leftMotorForward, 0);
   analogWrite(_leftMotorBackward, 0);

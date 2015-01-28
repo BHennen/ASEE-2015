@@ -10,44 +10,38 @@ General:
 -Update UML on wiki to match our current software design
 
 ***************************
-Conveyor Library:
--Conveyor.h
---change private variables to have _underscore names
---add comment to functions, classes, enums, and variables
---change goToPosition to have the ClawPosition enum as the parameter
---change constructor to accept pin number of the limit switches, motorSpeed and servo angles as parameters
---add comment to ClawPosition enum: numbers = pin numbers for servos
+(1-31-15) Track Test Run
+- (1-28-15) Make a test sketch including drivetrain and visualSensor library
+--Finish drivetrain and visualSensor library
 
--Conveyor.cpp
---fix openClaw() method (currently closes claw)
---fix constructor(based on .h file)
---fix goToPosition(based on .h file)
+-Will test out a path around the track, stopping briefly at each fish (4 sec)
+
+**************************
+(1-31-15) Conveyor Library:
+-Conveyor.h
+--add comment to functions, classes, enums, and variables
 
 -Test Sketch
 --make one that tests all functions of this library
 
 **************************
-Drivetrain Library:
--Drivetrain.h
---add comments to functions, classes, and variables
---change parameter name of goSpeed to power
+Drivetrain Library: (Done for now)
+
+-Implement PID control to tune the motors so they turn at same speed(go in straight line)
+--May not be needed
 
 -Drivetrain.cpp
---finish the rotate() function (add more steps)
-
--Test Sketch
---make one that test all the functions of this library
+--finish the rotate() function (add more steps), need to test this function to get the right times for the array
 
 **************************
-Visual Sensor Library:
--VisualSensor.h
---add comments for functions, variables and classes
---rename pixy to _pixy
+Visual Sensor Library: (Done for now)
 
--VisualSensor.cpp
---rename pixy to _pixy
-
--Test Sketch
---Make one that tests all the functions of this library
 
 **************************
+Stop using delay() in programs and functions in libraries
+
+-delay() causes the program to stop for a specified amount of time.
+	This means the program is required to do something until the amount of time has
+	passed. So we can't do multiple things at once(like picking up a fish AND 
+	rotating the robot) if we use delay(). Found an	alternative to delay here: 
+	http://playground.arduino.cc/Code/AvoidDelay

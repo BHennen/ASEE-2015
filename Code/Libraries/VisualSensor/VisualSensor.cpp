@@ -2,12 +2,24 @@
 #include "VisualSensor.h"
 
 /**
- * Constructor
+ * Constructor. Intitialize the following variables
+ * badBlock: Initialize all values of the block to -1.
+ * _pixy: Initialize the pixy camera.
+ * _IRPort: Set the IRPort.
+ * _stopVoltage: Set the stop voltage; The robot should stop whenever the 
+ *               input voltage from the IR sensor is greater than this voltage.
  */
-VisualSensor::VisualSensor(char IRPort, float stopVoltage)
+VisualSensor::VisualSensor(const char IRPort, const float stopVoltage)
 {
+  //Set all the badBlock's values to -1
+  badBlock.signature = -1;
+  badBlock.x = -1;
+  badBlock.y = -1;
+  badBlock.width = -1;
+  badBlock.height = -1;
+
   //Initialize pixy
-  pixy.init();
+  _pixy.init();
 
   //Set IR Port
   _IRPort = IRPort;
@@ -22,27 +34,32 @@ VisualSensor::~VisualSensor()
 }
 
 /**
- * Find the correct block to go to. Currently finds the lowest one in the view
+ * Find the correct block to go to. 
+ * Currently finds the lowest one in the Pixy's view (lower = closer).
+ * Returns null if there are no blocks found.
  */
 Block VisualSensor::getBlock()
 {
-  //Get all the blocks(detected objects) from the pixy
-  int numBlocks = pixy.getBlocks();
+  //Get the number of blocks(detected objects) from the pixy
+  int numBlocks = _pixy.getBlocks();
+
+  if (numBlocks == 0)
+  {
+	  return badBlock;
+  }
 
   //Set the initial maximum to be the first block found
-  int maxY = pixy.blocks[0].y;
-  Block block;
-  
+  int maxY = _pixy.blocks[0].y;
+  Block block; //Declare block to be returned
   //Loop through each block
   for (int j = 0; j < numBlocks; j++)
   {
-    
     //Find the lowest block in the frame (which should be the closest block)
     //higher y value means lower in the frame
-    if (pixy.blocks[j].y > maxY)
+    if (_pixy.blocks[j].y >= maxY)
     {
-      maxY = pixy.blocks[j].y;
-      block = pixy.blocks[j];
+      maxY = _pixy.blocks[j].y;
+      block = _pixy.blocks[j];
     }
   }
   return block;
@@ -60,7 +77,6 @@ boolean VisualSensor::isClose()
   {
    return true;
   }
-  
   return false;
 }
 

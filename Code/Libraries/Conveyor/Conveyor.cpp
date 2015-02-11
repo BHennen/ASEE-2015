@@ -35,7 +35,7 @@ Conveyor::~Conveyor()
  */
 void Conveyor::goToPosition(ClawPosition clawPos)
 {
-  if (clawPosition == FISH)
+  if (clawPos == FISH)
   {
     //Turn motor on backward
     analogWrite(_conveyorMotorBackwardPin, _motorSpeed);

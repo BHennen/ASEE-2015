@@ -22,8 +22,7 @@ const byte rightMotorForward = 4;
 const byte rightMotorBackward = 5;
 
 int center = 160; //Where the robot aims when it detects a block. Valid values are 0 - 319.
-byte deadZone = 20; //How big the "center" of the robot is. Smaller values will cause robot to wiggle more.
-byte power = 160; //How much power for wheel motors. Valid values are 0 - 255.
+byte power = 100; //How much power for wheel motors. Valid values are 0 - 255.
 int stepTimes[3] = {1000, 3000, 1000}; //An array where each element is how much time in milliseconds should be spent at each step of rotation.
 
 Drivetrain *wheels;
@@ -31,13 +30,17 @@ Block testCenterBlock;
 Block testRightBlock;
 Block testLeftBlock;
 
+float kp = 0.0;
+float ki = 0.0;
+float kd = 0.0;
+
 void setup() 
 {
   Serial.begin(9600);
-  wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward, center, deadZone, power, stepTimes);  
+  wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward, center, power, stepTimes, kp, ki, kd);  
   testCenterBlock.x = center;
-  testRightBlock.x = center + deadZone + 1;
-  testLeftBlock.x = center - deadZone - 1;
+  testRightBlock.x = center + 1;
+  testLeftBlock.x = center - 1;
 }
 
 void loop() 

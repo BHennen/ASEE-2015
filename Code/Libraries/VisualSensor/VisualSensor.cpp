@@ -48,13 +48,17 @@ Block VisualSensor::getBlock()
 	  return badBlock;
   }
 
+  //Serial.println( "--------" );
+
   //Set the initial maximum to be the first block found
   int maxY = _pixy.blocks[0].y;
   Block block; //Declare block to be returned
   //Loop through each block
   for (int j = 0; j < numBlocks; j++)
   {
-    //Find the lowest block in the frame (which should be the closest block)
+	// _pixy.blocks[ j ].print();
+    
+	//Find the lowest block in the frame (which should be the closest block)
     //higher y value means lower in the frame
     if (_pixy.blocks[j].y >= maxY)
     {

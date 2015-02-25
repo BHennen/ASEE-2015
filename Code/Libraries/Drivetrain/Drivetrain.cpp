@@ -206,10 +206,18 @@ void Drivetrain::rotate(int stepNum)
  */
 void Drivetrain::stopMotors()
 {
-  analogWrite(_rightMotorForward, 0);
+
+	analogWrite(_rightMotorForward, 100);
+	analogWrite(_rightMotorBackward, 100);
+	analogWrite(_leftMotorForward, 100);
+	analogWrite(_leftMotorBackward, 100);
+	
+
+ /*analogWrite(_rightMotorForward, 0);
   analogWrite(_rightMotorBackward, 0);
   analogWrite(_leftMotorForward, 0);
   analogWrite(_leftMotorBackward, 0);
+  */
 }
 
 /**

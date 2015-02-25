@@ -1,18 +1,18 @@
 #include <SPI.h>
 #include <Pixy.h>
-#include <VisualSensor.h>
+#include <Sensors.h>
 
-/*****************************************
- * Test Sketch for Visual Sensor Library *
- *****************************************
- * Tests all of the functions of the Visual Sensor library.
+/**************************************
+ * Test Sketch for VisualSensor class *
+ **************************************
+ * Tests all of the functions of the VisualSensor class.
  * Should print out to serial:
  * 1) If the pixy sees a block: "Detected Block: [block information]"
  * 2) If the pixy doesn't see a block: "No block"
  * 3) If the IR sensor is close to an oject: "IR sensor is close"
  */
 
-VisualSensor (*sensors);
+VisualSensor *sensors;
 
 const char IRPort = A0; //Port for IR sensor
 float stopVoltage = 2.8; //Voltage to stop the robot

@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "VisualSensor.h"
+#include "Sensors.h"
 
 /**
  * Constructor. Intitialize the following variables
@@ -84,3 +84,32 @@ boolean VisualSensor::isClose()
   return false;
 }
 
+/**
+* Constructor. Set the initial heading whenever the program starts.
+*/
+Compass::Compass()
+{
+	_initDegrees = getDegrees();
+}
+
+Compass::~Compass()
+{
+
+}
+
+/**
+* Returns the current heading of the robot in degrees.
+*/
+int Compass::getDegrees()
+{
+	//TODO
+	return -1;
+}
+
+/**
+* Returns the initial heading when the program was first started in degrees.
+*/
+int Compass::getInitDegrees()
+{
+	return _initDegrees;
+}

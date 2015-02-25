@@ -1,4 +1,10 @@
 Drivetrain	KEYWORD1
+goToFishPID	KEYWORD2
+rotateDegrees	KEYWORD2
+stopMotors	KEYWORD2
+turnLeft	KEYWORD2
+turnRight	KEYWORD2
+goStraight KEYWORD2
 goToFish	KEYWORD2
 rotate	KEYWORD2
-stopMotors	KEYWORD2
+

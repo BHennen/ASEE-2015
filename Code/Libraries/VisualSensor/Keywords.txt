@@ -1,3 +1,0 @@
-VisualSensor	KEYWORD1
-getBlock	KEYWORD2
-isClose	KEYWORD2

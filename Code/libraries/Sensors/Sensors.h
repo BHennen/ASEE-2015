@@ -1,10 +1,13 @@
-#ifndef VISUALSENSOR_H
-#define VISUALSENSOR_H
+#ifndef SENSORS_H
+#define SENSORS_H
 
 #include <Arduino.h>
 #include <SPI.h>
 #include <Pixy.h>
 
+/**
+ * Class that contains sensors to be used to visually locate a block. This includes the Pixy and an IR sensor.
+ */
 class VisualSensor
 {
   public:
@@ -40,6 +43,33 @@ class VisualSensor
     Pixy _pixy; //Variable for pixy camera
     float _stopVoltage; //The robot should stop whenever the input voltage from the IR sensor is greater than this voltage.
     char _IRPort; //The port for the IR sensor
+};
+
+/**
+ * The compass allows you to get the current heading in degrees and the initial heading of when the robot was first turned on.
+ */
+class Compass
+{
+public:
+	/**
+	 * Constructor. Set the initial heading whenever the program starts.
+	 */
+	Compass();
+
+	~Compass();
+
+	/**
+	 * Returns the current heading of the robot in degrees.
+	 */
+	int getDegrees();
+
+	/**
+	 * Returns the initial heading when the program was first started in degrees.
+	 */
+	int getInitDegrees();
+
+private:
+	int _initDegrees; //Initial degrees when the robot is started
 };
 
 #endif

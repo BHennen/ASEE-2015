@@ -1,5 +1,6 @@
 #include <SPI.h>
 #include <Pixy.h>
+#include <Sensors.h>
 #include <Drivetrain.h>
 
 /**************************************
@@ -14,30 +15,44 @@
  * 5) Right wheel should power for 1 sec. (test the rotate() method)
  * 6) Right wheel should power for 1 sec. (test the rotate() method)
  */
- 
-//Pins for motors
-const byte leftMotorForward = 2;
-const byte leftMotorBackward = 3;
-const byte rightMotorForward = 4;
-const byte rightMotorBackward = 5;
 
+//Pins for motors
+byte leftMotorForward = 2;
+byte leftMotorBackward = 3;
+byte rightMotorForward = 4;
+byte rightMotorBackward = 5;
+
+//Constants for motors
 int center = 160; //Where the robot aims when it detects a block. Valid values are 0 - 319.
 byte power = 100; //How much power for wheel motors. Valid values are 0 - 255.
-int stepTimes[3] = {1000, 3000, 1000}; //An array where each element is how much time in milliseconds should be spent at each step of rotation.
 
+//Constant for turning
+int stepTimes[3] = {1000, 3000, 1000}; //An array where each element is how much time in milliseconds should be spent at each step of rotation.
+byte turnDeadzone = 2;
+
+//Constants for PID controller
+float kp = 0.0; //proportional
+float ki = 0.0; //integral
+float kd = 0.0; //derivative
+
+//Constants for visual sensor
+const char IRPort = A0; //Port for IR sensor
+float stopVoltage = 2.6; //Voltage to stop the robot
+
+//Pointers to robot objects
 Drivetrain *wheels;
+Compass *compass; //We dont actually use compass here
 Block testCenterBlock;
 Block testRightBlock;
 Block testLeftBlock;
 
-float kp = 0.0;
-float ki = 0.0;
-float kd = 0.0;
-
 void setup() 
 {
   Serial.begin(9600);
-  wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward, center, power, stepTimes, kp, ki, kd);  
+  wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward,
+                          center, power,
+                          kp, ki, kd,
+                          compass, stepTimes, turnDeadzone);
   testCenterBlock.x = center;
   testRightBlock.x = center + 1;
   testLeftBlock.x = center - 1;

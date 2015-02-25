@@ -1,6 +1,6 @@
 #include <SPI.h>
 #include <Pixy.h>
-#include <VisualSensor.h>
+#include <Sensors.h>
 #include <Drivetrain.h>
 
 /**********************************
@@ -16,26 +16,39 @@ byte leftMotorBackward = 3;
 byte rightMotorForward = 4;
 byte rightMotorBackward = 5;
 
+//Constants for motors
 int center = 160; //Where the robot aims when it detects a block. Valid values are 0 - 319.
 byte power = 80; //How much power for wheel motors. Valid values are 0 - 255.
-int stepTimes[] = {1000};
+
+//Constant for turning
+int stepDegrees[] = {45};
+byte turnDeadzone = 2;
 
 //Constants for PID controller
-float kp = 0.4; //proportional
-float ki = 0.0; //integral
-float kd = 0.0; //derivative
+float kp = 0.25; //proportional
+float ki = 0.025; //integral
+float kd = 0.07; //derivative
 
-VisualSensor *eyes;
-Drivetrain *wheels;
-
+//Constants for visual sensor
 const char IRPort = A0; //Port for IR sensor
 float stopVoltage = 2.6; //Voltage to stop the robot
+
+//Pointers to robot objects
+VisualSensor *eyes;
+Drivetrain *wheels;
+Compass *compass;
 
 void setup()
 {
   Serial.begin(9600);
+  
+  //Create objects
   eyes = new VisualSensor(IRPort, stopVoltage);
-  wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward, center, power, stepTimes, kp, ki, kd);
+  compass = new Compass();
+  wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward,
+                          center, power,
+                          kp, ki, kd,
+                          compass, stepDegrees, turnDeadzone);
 }
 
 void loop()

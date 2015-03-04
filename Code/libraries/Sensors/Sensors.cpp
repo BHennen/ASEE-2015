@@ -87,7 +87,7 @@ boolean VisualSensor::isClose()
 /**
 * Constructor. Set the initial heading whenever the program starts.
 */
-Compass::Compass()
+Compass::Compass(const char CompassPort1, const char CompassPort2)
 {
 	_initDegrees = getDegrees();
 }

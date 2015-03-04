@@ -54,7 +54,7 @@ public:
 	/**
 	 * Constructor. Set the initial heading whenever the program starts.
 	 */
-	Compass();
+	Compass(const char CompassPort1, const char CompassPort2);
 
 	~Compass();
 

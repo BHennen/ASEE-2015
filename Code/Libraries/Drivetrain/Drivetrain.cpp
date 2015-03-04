@@ -120,25 +120,11 @@ void Drivetrain::goToFishPID(Block block, unsigned long currentTime)
 */
 boolean Drivetrain::rotateDegrees(byte stepNum, byte power)
 {
-<<<<<<< HEAD
 
-	analogWrite(_rightMotorForward, 100);
-	analogWrite(_rightMotorBackward, 100);
-	analogWrite(_leftMotorForward, 100);
-	analogWrite(_leftMotorBackward, 100);
-	
 
- /*analogWrite(_rightMotorForward, 0);
-  analogWrite(_rightMotorBackward, 0);
-  analogWrite(_leftMotorForward, 0);
-  analogWrite(_leftMotorBackward, 0);
-  */
-}
-=======
 	if(!_isRotating) //If the robot is not currently rotating and this method is called, determine the values needed for the upcoming rotation
 	{
 		_turnRight = _stepDegrees[stepNum - 1] < 0; // -stepDegrees means we rotate right, +stepDegrees means we rotate left
->>>>>>> origin/master
 
 		//Set the robots required degrees based on the initial degrees and the degrees required by the step
 		//Increments desired degrees by what step we're on. So if we turn right 45 deg and left 45 deg, it will be back at the initial heading(which is what we want)

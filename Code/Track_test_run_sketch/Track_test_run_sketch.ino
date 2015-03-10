@@ -1,6 +1,6 @@
 #include <SPI.h>
 #include <Pixy.h>
-#include <VisualSensor.h>
+#include <Sensors.h>
 #include <Drivetrain.h>
 
 /***********************************************
@@ -29,9 +29,13 @@ const byte rightMotorBackward = 5;
 const char IRPort = A0;
 
 //Adjustment values
-float stopVoltage = 2.8; //How close the robot gets before it stops. Lower number means greater stopping distance. Maximum value is 3.2.
+float stopVoltage = 2.6; //How close the robot gets before it stops. Lower number means greater stopping distance. Maximum value is 3.2.
 int center = 160; //Where the robot aims when it detects a block. Valid values are 0 - 319.
-byte power = 140; //How much power for wheel motors. Valid values are 0 - 255.
+byte power = 80; //How much power for wheel motors. Valid values are 0 - 255.
+
+//Constant for turning
+int stepDegrees[] = {45};
+byte turnDeadzone = 2;
 
 //Steptimes array; need to test robot around track to fill out these values
 //It's an array where each element is how much time in milliseconds should be spent at each step of rotation.
@@ -61,19 +65,30 @@ int stepTimes[19] = {250, //At fish 1, turn RIGHT to fish 2
                     };
 
 //Classes from our libraries
-Drivetrain *wheels;
+//Pointers to robot objects
 VisualSensor *eyes;
+Drivetrain *wheels;
+Compass *compass;
 
 //Variables to keep track of
 byte numFishCollected;
 byte stepNum;
+
+//Constants for PID controller
+float kp = 0.25; //proportional
+float ki = 0.025; //integral
+float kd = 0.07; //derivative 
 
 void setup()
 {
   Serial.begin(9600);
 
   //Construct drivetrain and sensor objects
-  wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward, center, power, stepTimes);
+
+  wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward,
+                          center, power,
+                          kp, ki, kd,
+                          compass, stepTimes, turnDeadzone);
   eyes = new VisualSensor(IRPort, stopVoltage);
 
   numFishCollected = 0;
@@ -82,6 +97,8 @@ void setup()
 
 void loop()
 {
+   unsigned long currentTime = millis();
+   
   //Test num fish collected; if less than 12 we are in fish collecting state.
   if (numFishCollected < 12)
   {
@@ -94,7 +111,7 @@ void loop()
       //Get block returns a bad block if no blocks were found, check if the block is the bad block
       if(targetBlock.signature != (*eyes).badBlock.signature)
       {
-        (*wheels).goToFish(targetBlock); //Block is good, Move toward it
+        (*wheels).goToFishPID(targetBlock, currentTime); //Block is good, Move toward it
       }
     }
     else //We are close to a fish:
@@ -102,7 +119,7 @@ void loop()
       //Insert conveyor code here
       //Conveyor code done; increment number of fish collected
       numFishCollected++;
-
+      
       //4 second delay to simulate conveyor time
       (*wheels).stopMotors();
       delay(4000);
@@ -123,7 +140,7 @@ void loop()
       //Get block returns a bad block if no blocks were found, check if the block is the bad block
       if(targetBlock.signature != (*eyes).badBlock.signature)
       {
-        (*wheels).goToFish(targetBlock); //Block is good, Move toward it
+        (*wheels).goToFishPID(targetBlock, currentTime); //Block is good, Move toward it
       }
     }
     else //We are close to a bin:

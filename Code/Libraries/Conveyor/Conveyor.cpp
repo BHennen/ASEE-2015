@@ -1,27 +1,25 @@
 #include "Conveyor.h"
 
-Conveyor::Conveyor(int motorSpeed, int closedAngle, int openAngle, byte conveyorMotorForwardPin, byte conveyorMotorBackwardPin, byte clawMotorPin)
+const byte conveyorMotorForwardPin = 2;
+const byte conveyorMotorBackwardPin = 3;
+const byte clawMotorPin = 4;
+const byte limitSwitchPin = 5 ;//?????
+
+Conveyor::Conveyor()
 {
-
-  _conveyorMotorForwardPin = conveyorMotorForwardPin;
-  _conveyorMotorBackwardPin = conveyorMotorBackwardPin;
-  _clawMotorPin = clawMotorPin;
-
-  _motorSpeed = motorSpeed;
+  motorSpeed = 160;
   
-  _clawServo.attach(_clawMotorPin);
-  _closedAngle = closedAngle;
-  _openAngle = openAngle;
-
-  pinMode(FISH, INPUT);
-  pinMode(RED_BIN, INPUT);
-  pinMode(YELLOW_BIN, INPUT);
-  pinMode(BLUE_BIN, INPUT);
-  pinMode(GREEN_BIN, INPUT);
-
-  pinMode(_conveyorMotorForwardPin, OUTPUT);
-  pinMode(_conveyorMotorBackwardPin, OUTPUT);
-  pinMode(_clawMotorPin, OUTPUT);
+  clawServo.attach(clawMotorPin);
+  closedAngle = 0;
+  openAngle = 90;
+  currentPosition = FISH;
+  currentState = LOW;
+  prevState = LOW;
+  
+  pinMode(conveyorMotorForwardPin, OUTPUT);
+  pinMode(conveyorMotorBackwardPin, OUTPUT);
+  pinMode(clawMotorPin, OUTPUT);
+  pinMode(limitSwitchPin, INPUT);
 }
 
 Conveyor::~Conveyor()
@@ -30,33 +28,43 @@ Conveyor::~Conveyor()
 }
 
 /**
- *  If claw position is fish, the motor should turn backward, otherwise it will turn forward until it hits the bin limit switch. Need to call this method twice to return the claw to
- *  fish position.
+ * This method counts using the limit switch and moves the claw backwards or forwards  
+ * depending on where it mus go. This method also return a boolean  based on if the claw is
+ * in the correct position. 
  */
-void Conveyor::goToPosition(ClawPosition clawPos)
+bool Conveyor::goToBin(BinPosition binPosition)
 {
-  if (clawPos == FISH)
-  {
-    //Turn motor on backward
-    analogWrite(_conveyorMotorBackwardPin, _motorSpeed);
+bool correctPosition = false;
+ // Checks current reading
+ currentState = digitalRead(limitSwitchPin);
+ //Counting part
+ if(binPosition>currentPosition)  
+ {
+   if(currentState == HIGH && prevState = LOW)
+   {
+     currentPosition++;
+   } 
+   analogWrite(conveyorMotorForwardPin, motorSpeed);
+   analogWrite(conveyorMotorBackwardPin, 0);
+ }
+ else if(binPosition<currentPosition)  
+ {
+   if(currentState == HIGH && prevState = LOW)
+   {
+     currentPosition--;
+   }
+   analogWrite(conveyorMotorBackwardPin, motorSpeed);
+    analogWrite(conveyorMotorForwardPin, 0);
+ }
+ else //we're at correct position
+ {
+    analogWrite(conveyorMotorBackwardPin, 0);
+    analogWrite(conveyorMotorForwardPin, 0);
+  correctPosition = true;
+ }
 
-    //If the limit switch of the requested bin is HIGH, stop motor
-	if (digitalRead(clawPos) == HIGH)
-    {
-      analogWrite(_conveyorMotorBackwardPin, 0);
-    }
-  }
-  else //Move claw to appropriate bin
-  {
-    //Turn motor on
-    analogWrite(_conveyorMotorForwardPin, _motorSpeed);
-
-    //If the limit switch of the requested bin is HIGH, stop motor
-	if (digitalRead(clawPos) == HIGH)
-    {
-      analogWrite(_conveyorMotorForwardPin, 0);
-    }
-  }
+ prevState = currentState; 
+ return correctPosition;
 }
 
 /**
@@ -64,7 +72,7 @@ void Conveyor::goToPosition(ClawPosition clawPos)
  */
 void Conveyor::closeClaw()
 {
-  _clawServo.write(_closedAngle);
+  clawServo.write(closedAngle);
 }
 
 /**
@@ -72,5 +80,5 @@ void Conveyor::closeClaw()
  */
 void Conveyor::openClaw()
 {
-  _clawServo.write(_openAngle);
+  clawServo.write(closedAngle);
 }

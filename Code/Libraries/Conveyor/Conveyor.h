@@ -4,34 +4,32 @@
 #include <Arduino.h>
 #include <Servo.h>
 
-/**
- * Numbers = pin numbers for limit switches
- */
-enum ClawPosition : byte
+enum BinPosition : byte
 {
-  FISH = 22,
-  RED_BIN = 23,
-  YELLOW_BIN = 24,
-  BLUE_BIN = 25,
-  GREEN_BIN = 26
+  FISH = 0,
+  RED_BIN = 1,
+  YELLOW_BIN = 2,
+  BLUE_BIN = 3,
+  GREEN_BIN = 4
 };
 
 class Conveyor
 {
   public:
-    Conveyor(int motorSpeed, int closedAngle, int openAngle, byte conveyorMotorForwardPin, byte conveyorMotorBackwardPin, byte clawMotorPin);
+    Conveyor();
     ~Conveyor();
-    void goToPosition(ClawPosition clawPos);
+    bool goToBin(int binPosition);
     void openClaw();
     void closeClaw();
   private:
-	byte _conveyorMotorForwardPin;
-	byte _conveyorMotorBackwardPin;
-	byte _clawMotorPin;
-    int _motorSpeed;
-    int _closedAngle;
-    int _openAngle;
-    Servo _clawServo;
+    int motorSpeed;
+    int closedAngle;
+    int openAngle;
+    Servo clawServo;
+    BinPosition currentPosition;
+    bool currentState;
+    bool prevState
+	
 };
 
 #endif

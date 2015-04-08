@@ -25,6 +25,8 @@ class Conveyor
     int motorSpeed;
     int closedAngle;
     int openAngle;
+	bool previos_state;
+	bool current_state;
     Servo clawServo;
     int currentPosition;
 };

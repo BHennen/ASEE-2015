@@ -13,7 +13,6 @@ Conveyor::Conveyor()
   closedAngle = 0;
   openAngle = 90;
   currentPosition = 0;
-  
   pinMode(conveyorMotorForwardPin, OUTPUT);
   pinMode(conveyorMotorBackwardPin, OUTPUT);
   pinMode(clawMotorPin, OUTPUT);

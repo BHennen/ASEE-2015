@@ -21,18 +21,28 @@ public:
 	Drivetrain(const byte leftMotorForward, const byte leftMotorBackward, const byte rightMotorForward, const byte rightMotorBackward,
 			   int center, byte power,
 			   float kp, float ki, float kd,
-			   Compass* compass, int *stepDegrees, byte turnDeadzone);
+			   Gyro* gyro, int *stepDegrees, byte turnDeadzone);
 
 	/**
 	 * Destructor
 	 */
 	~Drivetrain();
 
+
 	/**
-	 * Gives power to motors, keeping the center of the block aligned with the requested center
-	 * set in the Drivetrain constructor.
+	 * Uses PID control to go forward, trying to keep the robot aligned with _center given the currentValue passed into the function.
 	 */
-	void goToFishPID(Block block, unsigned long currentTime);
+	void goToFishPID(float currentValue, unsigned long currentTime);
+
+	/**
+	 * Sets the _center of the robot for use in the PID controller.
+	 */
+	void setCenter(float desiredCenter);
+
+	/**
+	 * Gets the _center value of the robot.
+	 */
+	float getCenter();
 
 	/**
 	* Rotates an amount based on what step we're on. StepNum > 0
@@ -85,12 +95,12 @@ private:
 	byte _rightMotorBackward; //Pin for right motor backward.
 
 	//Motor variables
-	int _center; //Where the robot aims when it detects a block. Valid values are 0 - 319.
+	float _center; //Where the robot aims for the PID control.
 	byte _power; //How much power for wheel motors. Valid values are 0 - 255.
 
 	//PID controller variables
 	unsigned long _previousTime;
-	int _previousError;
+	float _previousError;
 	float _integral;
 	float _kp;
 	float _ki;
@@ -98,7 +108,7 @@ private:
 
 	//Variables for rotate method
 	int* _stepDegrees; //An array where each element is how much degrees from initial heading at each step of rotation.
-	Compass* _compass; //Allow drivetrain access to a compass
+	Gyro* gyro; //Allow drivetrain access to a gyro
 	//Keep track of values needed to turn correctly
 	boolean _turnRight; //Keep track of turning right or left
 	float _desiredDegrees;

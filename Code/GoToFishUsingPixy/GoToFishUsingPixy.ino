@@ -5,6 +5,7 @@
 #include <Sensors.h>
 #include <Drivetrain.h>
 #include <Wire.h>
+#include <L3G.h>
 
 /***********************************************
  * Test Sketch for a test run around the track *
@@ -41,7 +42,7 @@ int stepDegrees[19] = {-30, //At fish 1, turn RIGHT to fish 2
                        90, //At fish 3, turn LEFT to fish 4
                        
                        //Turn to face the outer ring of fish
-                       -45, //At fish 4, turn RIGHT to fish 5
+                       -30, //At fish 4, turn RIGHT to fish 5
                        135, //At fish 5, turn LEFT to fish 6
                        45, //At fish 6, turn LEFT to fish 7
                        45, //At fish 7, turn LEFT to fish 8
@@ -60,7 +61,7 @@ int stepDegrees[19] = {-30, //At fish 1, turn RIGHT to fish 2
                        45, //At bin 3, face bin 4
                        45, //At bin 4, reposition for dumping
                        };
-byte turnDeadzone = 4;
+byte turnDeadzone = 3;
 
 //Constants for PID controller
 float kp = 0.25f; //proportional
@@ -74,7 +75,7 @@ float stopVoltage = 2.6; //Voltage to stop the robot
 //Pointers to robot objects
 VisualSensor *eyes;
 Drivetrain *wheels;
-Compass *compass;
+Gyro *gyro;
 
 int numFishCollected = 0;
 int stepNum = 1;
@@ -85,16 +86,17 @@ void setup()
 
     //Create objects
     eyes = new VisualSensor(IRPort, stopVoltage);
-    compass = new Compass(false);
+    gyro = new Gyro();
     wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward,
                             center, power,
                             kp, ki, kd,
-                            compass, stepDegrees, turnDeadzone);
+                            gyro, stepDegrees, turnDeadzone);
 }
 
 void loop()
 {
     unsigned long currentTime = millis();
+    gyro->update(currentTime); //Update gyro value
     //Test num fish collected; if less than 12 we are in fish collecting state.
     if(numFishCollected < 12)
     {
@@ -106,11 +108,12 @@ void loop()
 
                 //Move toward the closest fish
                 Block targetBlock = (*eyes).getBlock(); //Get closest fish
+                float targetValue = (float) targetBlock.x; //Get the value for the PID to go to.
 
                 //Get block returns a bad block if no blocks were found, check if the block is the bad block
                 if(targetBlock.signature != (*eyes).badBlock.signature)
                 {
-                    wheels->goToFishPID(targetBlock, currentTime); //Block is good, Move toward it
+                    wheels->goToFishPID(targetValue, currentTime); //Block is good, Move toward it
                 }
                 else
                 {
@@ -119,7 +122,7 @@ void loop()
             }
             else //We are close to a fish:
             {
-                Serial.println("IR sensor close");
+                //Serial.println("IR sensor close");
                 //Insert conveyor code here
                 //Conveyor code done; increment number of fish collected
                 numFishCollected++;
@@ -130,11 +133,13 @@ void loop()
 
                 //Rotate toward next fish
                 wheels->rotateDegrees(stepNum, power);
+
+                eyes->resetClosestBlock();
             }
         }
         else //We are rotating
         {
-            Serial.println("rotating to next fish");
+            //Serial.println("rotating to next fish");
             if(wheels->rotateDegrees(stepNum, power))
             {
                 stepNum++;

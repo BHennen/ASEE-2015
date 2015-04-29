@@ -11,7 +11,7 @@
 Drivetrain::Drivetrain(const byte leftMotorForward, const byte leftMotorBackward, const byte rightMotorForward, const byte rightMotorBackward,
 					   int center, byte power,
 					   float kp, float ki, float kd,
-					   Compass* compass, int *stepDegrees, byte turnDeadzone)
+					   Gyro* gyro, int *stepDegrees, byte turnDeadzone)
 {
 	//Set the pinmode of the motor ports to be output.
 	pinMode(leftMotorForward, OUTPUT);
@@ -31,11 +31,11 @@ Drivetrain::Drivetrain(const byte leftMotorForward, const byte leftMotorBackward
 
 	//Variables for rotate method
 	_stepDegrees = stepDegrees;
-	_compass = compass; //Allow drivetrain access to a compass
 	_isRotating = false; //Boolean to keep track if the robot is in the rotate method
 	//Keep track of values needed to turn correctly
+	this->gyro = gyro;
 	_turnRight = false;
-	_desiredDegrees = compass->getDegrees(); //Set initial desired degrees to be the initial degrees read in
+	_desiredDegrees = 0; //Set initial desired degrees to be the initial degrees read in
 	_leftDegrees = 0.0;
 	_rightDegrees = 0.0;
 	_turnDeadzone = turnDeadzone;//+- degrees acceptable
@@ -61,9 +61,9 @@ Drivetrain::~Drivetrain()
  ******************/
 
 /**
-* Uses PID control to go toward a block. Tries to keep the block aligned with _center.
+* Uses PID control to go forward, trying to keep the robot aligned with _center given the currentValue passed into the function.
 */
-void Drivetrain::goToFishPID(Block block, unsigned long currentTime)
+void Drivetrain::goToFishPID(float currentValue, unsigned long currentTime)
 {
 	//Determine PID output
 	int dt = currentTime - _previousTime; //Find how long has passed since the last adjustment.
@@ -71,8 +71,8 @@ void Drivetrain::goToFishPID(Block block, unsigned long currentTime)
 	//Serial.print("Dt: ");
 	//Serial.println(dt);
 	
-	//Determine error; how far off the robot is from center
-	int error = _center - block.x;
+	//Determine error; how far off the robot is from _center
+	float error = _center - currentValue;
 	//Serial.print("block.x:");
 	//Serial.println(block.x);
 	//Serial.print("Error: ");
@@ -130,6 +130,22 @@ void Drivetrain::goToFishPID(Block block, unsigned long currentTime)
 }
 
 /**
+ * Sets the _center of the robot for use in the PID controller.
+ */
+void Drivetrain::setCenter(float desiredCenter)
+{
+	_center = desiredCenter;
+}
+
+/**
+* Gets the _center value of the robot.
+*/
+float Drivetrain::getCenter()
+{
+	return _center;
+}
+
+/**
 * Rotates an amount based on what step we're on. StepNum > 0
 * Returns false if the robot has not rotated the correct amount, otherwise
 * returns true when the robot has rotated the required amount.
@@ -150,30 +166,21 @@ boolean Drivetrain::rotateDegrees(byte stepNum, byte power)
 		{
 			_desiredDegrees += 360;
 		}
-
-		//Set the acceptable bounds of the robot turning
-		_leftDegrees = _desiredDegrees + _turnDeadzone;
-		_rightDegrees = _desiredDegrees - _turnDeadzone;
-		//leftDegrees is always >=0, so check if it is >180. If it is, change it so it is within 0-180
-		if(_leftDegrees >= 360)
-		{
-			_leftDegrees -= 360;
-		}
-		//rightDegrees is always <180, so check if it is <0. If it is, change it so it is within 0-180
-		if(_rightDegrees < 0)
-		{
-			_rightDegrees += 360;
-		}
 	}
 	else
 	{
 		//Robot is currently rotating, values not needed to be computed
 	}
 
-	//Turn the robot until the heading measured by the compass is the correct heading determined by degrees
-	float currentDegrees = _compass->getDegrees();
+	//Turn the robot until the heading measured by the gyro is the correct heading determined by degrees
+	float currentDegrees = gyro->getDegrees();
 	//Check if robot has turned far enough
-	if(currentDegrees <= _leftDegrees && currentDegrees >= _rightDegrees)
+	//Calculate the angle between the desired and current degrees.
+	//After corrections, negative diff means the robot should turn left. positive means it should turn right.
+	float diff = _desiredDegrees - currentDegrees;
+	if(diff > 180.0f) diff -= 360;
+	if(diff < -180.0f) diff += 360;
+	if(abs(diff) < _turnDeadzone)
 	{
 		//Serial.println("Done rotating!");
 		//Robot has rotated the correct amount
@@ -183,36 +190,15 @@ boolean Drivetrain::rotateDegrees(byte stepNum, byte power)
 	}
 	else //Robot has not rotated the correct amount, continue rotating
 	{
-		//Serial.println("--- Not rotated far enough: ---");
-		Serial.print("Desired degrees: ");
-		Serial.println(_desiredDegrees);
-		Serial.print("Current degrees: ");
-		Serial.println(currentDegrees);
-		//Serial.print("left degrees: ");
-		//Serial.println(_leftDegrees);
-		//Serial.print("right degrees: ");
-		//Serial.println(_rightDegrees);
-
-		//Calculate shortest rotation
-		float diff = _desiredDegrees - currentDegrees;
-		if(diff > 180)
+		//Serial.println("--- Not rotated far enough: ---");		
+		if(diff < 0)
 		{
-			
-			currentDegrees += 360;
-		}
-		else if(diff < -180)
-		{
-			currentDegrees -= 360;
-		}
-
-		if(currentDegrees > _desiredDegrees)
-		{
-			//Serial.println("turn right");
+			//Serial.println("turn left");
 			turnLeft(power);
 		}
 		else
 		{
-			//Serial.println("turn left");
+			//Serial.println("turn right");
 			turnRight(power);
 		}
 		_isRotating = true;
@@ -237,7 +223,7 @@ void Drivetrain::stopMotors()
 void Drivetrain::turnRight(byte power)
 {
 	analogWrite(_rightMotorForward, 0);
-	analogWrite(_rightMotorBackward, power);
+	analogWrite(_rightMotorBackward, 0);
 	analogWrite(_leftMotorForward, power);
 	analogWrite(_leftMotorBackward, 0);
 }
@@ -250,7 +236,7 @@ void Drivetrain::turnLeft(byte power)
 	analogWrite(_rightMotorForward, power);
 	analogWrite(_rightMotorBackward, 0);
 	analogWrite(_leftMotorForward, 0);
-	analogWrite(_leftMotorBackward, power);
+	analogWrite(_leftMotorBackward, 0);
 }
 
 //old methods

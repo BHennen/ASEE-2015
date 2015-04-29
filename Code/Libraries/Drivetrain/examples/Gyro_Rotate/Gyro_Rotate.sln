@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.30501.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Gyro_Rotate", "Gyro_Rotate.vcxproj", "{D62E658B-90D6-4BA7-A85C-69961A8C4EE6}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GyroTest", "..\..\..\..\GyroTest\GyroTest.vcxproj", "{B37C8CA0-75E9-41A1-B17E-E6484C5757AF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D62E658B-90D6-4BA7-A85C-69961A8C4EE6}.Debug|Win32.ActiveCfg = Debug|Win32
+		{D62E658B-90D6-4BA7-A85C-69961A8C4EE6}.Debug|Win32.Build.0 = Debug|Win32
+		{D62E658B-90D6-4BA7-A85C-69961A8C4EE6}.Release|Win32.ActiveCfg = Release|Win32
+		{D62E658B-90D6-4BA7-A85C-69961A8C4EE6}.Release|Win32.Build.0 = Release|Win32
+		{B37C8CA0-75E9-41A1-B17E-E6484C5757AF}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B37C8CA0-75E9-41A1-B17E-E6484C5757AF}.Debug|Win32.Build.0 = Debug|Win32
+		{B37C8CA0-75E9-41A1-B17E-E6484C5757AF}.Release|Win32.ActiveCfg = Release|Win32
+		{B37C8CA0-75E9-41A1-B17E-E6484C5757AF}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

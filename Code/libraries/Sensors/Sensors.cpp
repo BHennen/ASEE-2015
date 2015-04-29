@@ -18,6 +18,9 @@ VisualSensor::VisualSensor(const char IRPort, const float stopVoltage)
   badBlock.width = -1;
   badBlock.height = -1;
 
+  //Set all the closest blocks values
+  closestBlock.y = 0;
+
   //Initialize pixy
   _pixy.init();
 
@@ -51,19 +54,22 @@ Block VisualSensor::getBlock()
   //Find the lowest block in the frame (which should be the closest block)
   //Higher y value means the block is lower in the frame.
   //Set the initial maximum to be the first block found.
-  int maxY = _pixy.blocks[0].y;
-  Block block; //Declare block index to be returned
+  //int maxY = closestBlock.y;
   //Loop through each block
   for(int blockIndex = 0; blockIndex < numBlocks; blockIndex++)
   {
       //find maxY and index of that block
-      if(_pixy.blocks[blockIndex].y >= maxY)
+      if(_pixy.blocks[blockIndex].y >= closestBlock.y)
       {
-          maxY = _pixy.blocks[blockIndex].y;
-          block = _pixy.blocks[blockIndex];
+          closestBlock = _pixy.blocks[blockIndex];
       }
   }
-  return block;
+  return closestBlock;
+}
+
+void VisualSensor::resetClosestBlock()
+{
+    closestBlock.y = 0;
 }
 
 /**
@@ -80,6 +86,88 @@ boolean VisualSensor::isClose()
   }
   return false;
 }
+
+/**
+ * Read the value from the IRsensor port and converts it into a value from 0.0 - 5.0 volts.
+ */
+float VisualSensor::readProximity()
+{
+    float voltage = analogRead(_IRPort) * (5.0f / 1023.0f);
+    return voltage;
+}
+
+//Constructor
+Gyro::Gyro()
+{
+    Wire.begin();
+
+    if(!gyro.init())
+    {
+        Serial.println("Failed to autodetect gyro type!");
+        while(1);
+    }
+    gyro.enableDefault();
+
+    previousTime = 0UL;
+    angleZ = 0.0f;
+
+    //Read values from eeprom
+    //Read averageBiasZ
+    int nextAddress = EEPROM_readAnything(0, averageBiasZ);
+    //read sigmaZ
+    nextAddress += EEPROM_readAnything(nextAddress, sigmaZ);
+    //read scaleFactor
+    nextAddress += EEPROM_readAnything(nextAddress, scaleFactorZ);
+
+    Serial.print("Bias: ");
+    Serial.print(averageBiasZ);
+    Serial.print("\tSigma: ");
+    Serial.print(sigmaZ);
+    Serial.print("\tScale Factor: ");
+    Serial.println(scaleFactorZ);
+}
+
+//Destructor
+Gyro::~Gyro()
+{
+
+}
+
+/**
+* Returns the current heading of the robot in degrees, based on the initial heading of the robot. (0 <= degrees < 360)
+*/
+float Gyro::getDegrees()
+{
+    return angleZ;
+}
+
+/**
+* Updates the current angle read by the gyro. Should be called every loop. Takes in the current time of the loop in millis().
+*/
+void Gyro::update(unsigned long currentTime)
+{
+    gyro.read();
+
+    unsigned long sampleTime = currentTime - previousTime;
+    previousTime = currentTime;
+
+    //find current rate of rotation
+    float rateZ = ((float) gyro.g.z - averageBiasZ);
+    if(abs(rateZ) < 3 * sigmaZ)
+    {
+        rateZ = 0.0f;
+    }
+
+    //find angle
+    angleZ += (rateZ * sampleTime / 1000.0f) * scaleFactorZ; //divide by 1000(convert to sec)
+
+    // Keep our angle between 0-359 degrees
+    if(angleZ < 0) angleZ += 360;
+    else if(angleZ >= 360) angleZ -= 360;
+
+    // Serial.print("Angle = "); Serial.print(angleZ); Serial.print("\tRate = "); Serial.println(rateZ * scaleFactorZ);
+}
+    
 
 /**
 * Constructor. Set the initial heading whenever the program starts.

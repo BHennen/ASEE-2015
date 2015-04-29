@@ -1,9 +1,10 @@
-#include <SPI.h>
-#include <Wire.h>
-#include <Pixy.h>
-#include <EEPROM.h>
-#include <EEPROMAnything.h>
 #include <Sensors.h>
+#include <SPI.h>
+#include <Pixy.h>
+#include <Wire.h>
+#include <eeprom.h>
+#include <EEPROMAnything.h>
+#include <L3G.h>
 #include <Drivetrain.h>
 
 /************************************
@@ -22,7 +23,7 @@ byte rightMotorBackward = 2;
 
 //Constants for motors
 int center = 160; //Where the robot aims when it detects a block. Valid values are 0 - 319.
-byte power = 70; //How much power for wheel motors. Valid values are 0 - 255.
+byte power = 250; //How much power for wheel motors. Valid values are 0 - 255.
 
 //Constant for turning
 int stepDegrees[19] = {-45, //At fish 1, turn RIGHT to fish 2
@@ -63,7 +64,7 @@ float stopVoltage = 2.6; //Voltage to stop the robot
 //Pointers to robot objects
 VisualSensor *eyes;
 Drivetrain *wheels;
-Compass *compass;
+Gyro *gyro;
 
 byte stepNum;
 
@@ -73,22 +74,24 @@ void setup()
   
   //Create objects
   eyes = new VisualSensor(IRPort, stopVoltage);
-  compass = new Compass(false);
+  gyro = new Gyro();
   wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward,
                           center, power,
                           kp, ki, kd,
-                          compass, stepDegrees, turnDeadzone);
+                          gyro, stepDegrees, turnDeadzone);
                           
   stepNum = 1;
 }
 
 void loop()
 {
-  //Rotates through 12 steps in stepDegrees (This rotates through the fish collection route and ends facing the first bin).
-  if(stepNum < 13 && wheels->rotateDegrees(stepNum, power)) //rotateDegrees returns TRUE when it has finished rotating
-  {
-    //Robot has rotated fully
-    stepNum++; //Increment step
-    delay(1000); //Wait 1 sec
-  }
+    unsigned long currentTime = millis();
+    gyro->update(currentTime); //Update gyro value
+    //Rotates through 12 steps in stepDegrees (This rotates through the fish collection route and ends facing the first bin).
+    if(stepNum < 13 && wheels->rotateDegrees(stepNum, power)) //rotateDegrees returns TRUE when it has finished rotating
+    {
+        //Robot has rotated fully
+        stepNum++; //Increment step
+        delay(1000); //Wait 1 sec
+    }
 }

@@ -7,6 +7,7 @@
 #include <Wire.h>
 #include <EEPROM.h>
 #include <EEPROMAnything.h>
+#include <L3G.h>
 
 
 /* Taken from ADAFRUIT Library */
@@ -83,11 +84,50 @@ class VisualSensor
      */
     boolean isClose();
 
+    /**
+     * Read the values from the IR sensor converted into 0.0 to 5.0 volts
+     */
+    float readProximity();
+
+    void resetClosestBlock();
+
     Block badBlock; //Variable that is a "bad block", used when we find no good blocks
   private:
     Pixy _pixy; //Variable for pixy camera
     float _stopVoltage; //The robot should stop whenever the input voltage from the IR sensor is greater than this voltage.
     char _IRPort; //The port for the IR sensor
+    Block closestBlock;
+};
+
+/**
+ * The gryo allows you to get the current heading of the robot in degrees.
+ */
+class Gyro
+{
+public:
+    //Constructor
+    Gyro();
+
+    //Destructor
+    ~Gyro();
+
+    /**
+     * Returns the current heading of the robot in degrees, based on the initial heading of the robot. (0 <= degrees < 360)
+     */
+    float getDegrees();
+
+    /**
+     * Updates the current angle read by the gyro. Should be called every loop. Takes in the current time of the loop in millis().
+     */
+    void update(unsigned long currentTime);
+private:
+    L3G gyro;
+    float angleZ;
+    unsigned long previousTime;
+
+    float averageBiasZ;
+    float sigmaZ;
+    float scaleFactorZ;
 };
 
 /**

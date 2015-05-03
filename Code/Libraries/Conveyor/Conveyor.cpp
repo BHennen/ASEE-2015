@@ -1,24 +1,24 @@
 #include "Conveyor.h"
 
 Conveyor::Conveyor(int openAngle, int closedAngle, byte conveyorPowerDownward, byte conveyorPowerUpward, byte conveyorMotorDownwardPin,
-	byte conveyorMotorUpwardPin, byte clawMotorPin, byte limitSwitchPin, byte binMotorForwardPin, byte binMotorBackwardPin, byte binMotorSpeed,
+	byte conveyorMotorUpwardPin, byte clawServoPin, byte limitSwitchPin, byte binMotorForwardPin, byte binMotorBackwardPin, byte binMotorSpeed,
 	unsigned long binDumpingTime)
 {
 
 	_conveyorMotorDownwardPin = conveyorMotorDownwardPin;
 	_conveyorMotorUpwardPin = conveyorMotorUpwardPin;
-	_clawMotorPin				= clawMotorPin				;
+	_clawServoPin				= clawServoPin				;
 	_limitSwitchPin				= limitSwitchPin			;
 	_binMotorForwardPin			= binMotorForwardPin		;
 	_binMotorBackwardPin		= binMotorBackwardPin		;
 	//set Pins
 	pinMode(conveyorMotorDownwardPin, OUTPUT);
 	pinMode(conveyorMotorUpwardPin, OUTPUT);
-	pinMode(clawMotorPin, OUTPUT);
+	pinMode(clawServoPin, OUTPUT);
 	pinMode(limitSwitchPin, INPUT);
 	pinMode(binMotorForwardPin, OUTPUT);
 	pinMode(binMotorBackwardPin, OUTPUT);
-	clawServo.attach(clawMotorPin);
+	clawServo.attach(clawServoPin);
 
 	//Conveyor variables
 	//motor

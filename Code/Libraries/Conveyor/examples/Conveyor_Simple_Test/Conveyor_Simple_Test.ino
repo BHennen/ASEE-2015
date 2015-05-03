@@ -12,7 +12,7 @@
 
 const byte conveyorMotorDownwardPin = 7;
 const byte conveyorMotorUpwardPin = 6;
-const byte clawMotorPin = 11;
+const byte clawServoPin = 11;
 const byte limitSwitchPin = 37;
 const byte binMotorForwardPin = 9;
 const byte binMotorBackwardPin = 10;
@@ -33,7 +33,7 @@ Conveyor *claw;
 void setup() {
   Serial.begin(9600);
   claw = new Conveyor(openAngle, closedAngle, conveyorPowerDownward, conveyorPowerUpward, conveyorMotorDownwardPin,
-      conveyorMotorUpwardPin, clawMotorPin, limitSwitchPin, binMotorForwardPin, binMotorBackwardPin, binMotorSpeed,
+      conveyorMotorUpwardPin, clawServoPin, limitSwitchPin, binMotorForwardPin, binMotorBackwardPin, binMotorSpeed,
       binDumpingTime);
 }
 

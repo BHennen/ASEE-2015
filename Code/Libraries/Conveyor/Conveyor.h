@@ -17,7 +17,7 @@ class Conveyor
 {
   public:
     Conveyor(int openAngle, int closedAngle, byte conveyorPowerForward, byte conveyorPowerBackward, byte conveyorMotorDownwardPin,
-          byte conveyorMotorUpwardPin, byte clawMotorPin, byte limitSwitchPin, byte binMotorForwardPin, byte binMotorBackwardPin, byte binMotorSpeed,
+          byte conveyorMotorUpwardPin, byte clawServoPin, byte limitSwitchPin, byte binMotorForwardPin, byte binMotorBackwardPin, byte binMotorSpeed,
           unsigned long binDumpingTime);
     ~Conveyor();
     boolean goToBin(BinPosition binPosition, boolean currentState, unsigned long currentTime);
@@ -30,7 +30,7 @@ class Conveyor
   private:
     byte _conveyorMotorDownwardPin	  ;
     byte _conveyorMotorUpwardPin;
-    byte _clawMotorPin				  ;
+    byte _clawServoPin				  ;
     byte _limitSwitchPin				  ;
     byte _binMotorForwardPin			  ;
     byte _binMotorBackwardPin		  ;

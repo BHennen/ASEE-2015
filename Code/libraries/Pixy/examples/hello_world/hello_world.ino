@@ -35,6 +35,8 @@ void setup()
   Serial.print("Starting...\n");
 
   pixy.init();
+
+  Serial.print("done connecting\n");
 }
 
 void loop()
@@ -46,7 +48,7 @@ void loop()
   
   // grab blocks!
   blocks = pixy.getBlocks();
-  
+  Serial.println(blocks);
   // If there are detect blocks, print them!
   if (blocks)
   {

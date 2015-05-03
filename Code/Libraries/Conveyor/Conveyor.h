@@ -6,33 +6,49 @@
 
 enum BinPosition : int
 {
-  FISH = 0,
-  RED_BIN = 1,
-  YELLOW_BIN = 2,
-  BLUE_BIN = 3,
-  GREEN_BIN = 4
+    FISH = 0,
+    BIN1 = 1,
+    BIN2 = 2,
+    BIN3 = 3,
+    BIN4 = 4,
 };
 
 class Conveyor
 {
   public:
-    Conveyor();
+    Conveyor(int openAngle, int closedAngle, byte conveyorPowerForward, byte conveyorPowerBackward, byte conveyorMotorDownwardPin,
+          byte conveyorMotorUpwardPin, byte clawMotorPin, byte limitSwitchPin, byte binMotorForwardPin, byte binMotorBackwardPin, byte binMotorSpeed,
+          unsigned long binDumpingTime);
     ~Conveyor();
-    bool goToBin(BinPosition binPosition);
+    boolean goToBin(BinPosition binPosition, boolean currentState, unsigned long currentTime);
     void openClaw();
     void closeClaw();
     bool dumpBins(unsigned long startTime);
+    boolean correctPosition;
+    //int count(int input);
+
   private:
+    byte _conveyorMotorDownwardPin	  ;
+    byte _conveyorMotorUpwardPin;
+    byte _clawMotorPin				  ;
+    byte _limitSwitchPin				  ;
+    byte _binMotorForwardPin			  ;
+    byte _binMotorBackwardPin		  ;
+
     int binMotorSpeed;
-    int motorSpeed;
-    int closedAngle;
-    int openAngle;
+    int motorSpeedDownward;
+    int motorSpeedUpward;
+    int _closedAngle;
+    int _openAngle;
     Servo clawServo;
     BinPosition currentPosition;
-    bool currentState;
-    bool prevState;
+    boolean currentState;
+    boolean previousState;
     unsigned long binDumpingTime;
-    
+    unsigned long previousTime;
+    unsigned long debounceTime;
+
+    boolean wentUp;
 };
 
 #endif

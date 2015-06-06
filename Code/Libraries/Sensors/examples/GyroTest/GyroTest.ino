@@ -7,10 +7,16 @@
 #include <L3G.h>
 
 Gyro* gyro;
+/*** GYRO ***/
+const float gyrokp = 4.0f;	//proportional
+const float gyroki = 0.5f;	//integral
+const float gyrokd = 0.5f;	//derivative
+float gyroPIDconsts[3] = { gyrokp, gyroki, gyrokd };
+
 void setup()
 {
 	Serial.begin(9600);
-	gyro = new Gyro();
+	gyro = new Gyro(gyroPIDconsts);
 }
 
 void loop()

@@ -1,6 +1,10 @@
 #include <SPI.h>
 #include <Pixy.h>
 #include <Sensors.h>
+#include <Wire.h>
+#include <eeprom.h>
+#include <EEPROMAnything.h>
+#include <l3g.h>
 
 /**************************************
  * Test Sketch for VisualSensor class *

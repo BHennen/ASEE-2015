@@ -9,7 +9,7 @@ template<typename T> struct vector
 {
     T x, y, z;
 };
-const float ROTATION_ANGLE = 180.0f;
+const float ROTATION_ANGLE = 360.0f;
 const float READING_TO_DPS = 0.00875f;
 float scaleFactor = 0.0f;
 float averageBiasZ = 0.0f;
@@ -35,13 +35,11 @@ void setup()
 {
     Serial.begin(9600);
     Wire.begin();
-
-    if(!gyro.init())
+    if (!gyro.init())
     {
         Serial.println("Failed to autodetect gyro type!");
         while(1);
     }
-
     gyro.enableDefault();
 
     averageBiasZ = 0.0f;
@@ -87,7 +85,9 @@ void loop()
     {
         if(!hasPrinted)
         {
-            Serial.println("Rotate clockwise to 180 and back to 0");
+            Serial.print("Rotate clockwise to ");
+            Serial.print(ROTATION_ANGLE);
+            Serial.println(" and back to 0");
             Serial.println("3...");
             delay(300);
             Serial.println("2...");

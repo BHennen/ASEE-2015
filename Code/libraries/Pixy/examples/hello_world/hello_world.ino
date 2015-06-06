@@ -52,12 +52,6 @@ void loop()
   // If there are detect blocks, print them!
   if (blocks)
   {
-    i++;
-    
-    // do this (print) every 50 frames because printing every
-    // frame would bog down the Arduino
-    if (i%50==0)
-    {
       sprintf(buf, "Detected %d:\n", blocks);
       Serial.print(buf);
       for (j=0; j<blocks; j++)
@@ -66,7 +60,7 @@ void loop()
         Serial.print(buf); 
         pixy.blocks[j].print();
       }
-    }
+    
   }  
 }
 

@@ -6,6 +6,7 @@
 #include <Wire.h>
 #include <eeprom.h>
 #include <EEPROMAnything.h>
+#include <L3G.h>
 
 /**********************************
  * Test Sketch for PID Controller *
@@ -15,23 +16,23 @@
  */
 
 //Pins for motors
-byte leftMotorForward = 5;
-byte leftMotorBackward = 4;
-byte rightMotorForward = 3;
-byte rightMotorBackward = 2;
+byte leftMotorForward   = 3;
+byte leftMotorBackward  = 2;
+byte rightMotorForward  = 5;
+byte rightMotorBackward = 4;
 
 //Constants for motors
 int center = 160; //Where the robot aims when it detects a block. Valid values are 0 - 319.
-byte power = 80; //How much power for wheel motors. Valid values are 0 - 255.
+byte power = 100; //How much power for wheel motors. Valid values are 0 - 255.
 
 //Constant for turning
-int stepDegrees[] = {45};
+int stepDegrees[] = { 45 };
 byte turnDeadzone = 2;
 
 //Constants for PID controller
-float kp = 0.25; //0.25;  //proportional
-float ki = 0.06; //0.025; //integral
-float kd = 0.05; //0.07;  //derivative
+float kp = 0.5f; //0.5;  //proportional
+float ki = 0.1f; //0.1; //integral
+float kd = 0.07f; //0.07;  //derivative
 
 //Constants for visual sensor
 const char IRPort = A0; //Port for IR sensor
@@ -40,43 +41,45 @@ float stopVoltage = 2.6; //Voltage to stop the robot
 //Pointers to robot objects
 VisualSensor *eyes;
 Drivetrain *wheels;
-Compass *compass;
+Gyro *gyro;
 
 void setup()
 {
-  Serial.begin(9600);
-  
-  //Create objects
-  eyes = new VisualSensor(IRPort, stopVoltage);
-  compass = new Compass(false);
-  wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward,
-                          center, power,
-                          kp, ki, kd,
-                          compass, stepDegrees, turnDeadzone);
+	Serial.begin(9600);
+
+	//Create objects
+	eyes = new VisualSensor(IRPort, stopVoltage);
+	gyro = new Gyro();
+	wheels = new Drivetrain(leftMotorForward, leftMotorBackward, rightMotorForward, rightMotorBackward,
+		center, power,
+		kp, ki, kd,
+		gyro, stepDegrees, turnDeadzone);
 }
 
 void loop()
 {
-  unsigned long currentTime = millis();
+	unsigned long currentTime = millis();
 
-  //See if there is a block in front of robot
-  if (!(*eyes).isClose())
-  {
-     //Move toward the closest fish
-    Block targetBlock = (*eyes).getBlock(); //Get closest fish
-    
-    //Get block returns a bad block if no blocks were found, check if the block is the bad block
-    if (targetBlock.signature != (*eyes).badBlock.signature)
-    {
-      (*wheels).goToFishPID(targetBlock, currentTime); //Block is good, Move toward it
-    }
-    else
-    {
-      (*wheels).stopMotors();
-    }
-  }
-  else //there is a block in front
-  {
-    (*wheels).stopMotors();
-  }
+	//See if there is a block in front of robot
+	if (!eyes->isClose())
+	{
+		//Move toward the closest fish
+		Block targetBlock = eyes->getBlock(); //Get closest fish
+		float targetValue = (float)targetBlock.x;
+		//Get block returns a bad block if no blocks were found, check if the block is the bad block
+		if (targetBlock.signature != eyes->badBlock.signature)
+		{
+			wheels->goToFishPID(targetValue, currentTime); //Block is good, Move toward it
+		}
+		else
+		{
+			wheels->resetIntegral();
+			wheels->stopMotors();
+		}
+	}
+	else //there is a block in front
+	{
+		wheels->resetIntegral();
+		wheels->stopMotors();
+	}
 }

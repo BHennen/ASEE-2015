@@ -132,8 +132,8 @@ void loop()
         else //We are rotating
         {
             //Serial.print("Rotating to next fish. IR value: \t");
-            Serial.println(eyes->readProximity());
-            
+            wheels->determineNextAngle(eyes->readProximity(), gyro->getDegrees());
+
             if(wheels->rotateDegrees(stepNum, power))
             {
                 stepNum++;

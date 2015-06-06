@@ -9,44 +9,45 @@
  * kp, ki, kd: Constants for proportional, integral, derivative components used to tune the PID controller.
  */
 Drivetrain::Drivetrain(const byte leftMotorForward, const byte leftMotorBackward, const byte rightMotorForward, const byte rightMotorBackward,
-					   int center, byte power,
-					   float kp, float ki, float kd,
-					   Gyro* gyro, int *stepDegrees, byte turnDeadzone)
+                       int center, byte power,
+					   Gyro* gyro, Rotation* rotations, byte turnDeadzone, double robotStopDist, double robotTurnRadius, double robotCenter)
 {
-	//Set the pinmode of the motor ports to be output.
-	pinMode(leftMotorForward, OUTPUT);
-	pinMode(leftMotorBackward, OUTPUT);
-	pinMode(rightMotorForward, OUTPUT);
-	pinMode(rightMotorBackward, OUTPUT);
+    //Set the pinmode of the motor ports to be output.
+    pinMode(leftMotorForward, OUTPUT);
+    pinMode(leftMotorBackward, OUTPUT);
+    pinMode(rightMotorForward, OUTPUT);
+    pinMode(rightMotorBackward, OUTPUT);
 
-	//Set ports
-	_leftMotorForward = leftMotorForward;
-	_leftMotorBackward = leftMotorBackward;
-	_rightMotorForward = rightMotorForward;
-	_rightMotorBackward = rightMotorBackward;
+    //Set ports
+    _leftMotorForward = leftMotorForward;
+    _leftMotorBackward = leftMotorBackward;
+    _rightMotorForward = rightMotorForward;
+    _rightMotorBackward = rightMotorBackward;
 
-	//Set motor variables
-	_center = center;
-	_power = power;
+    //Set motor variables
+    _center = center;
+    _power = power;
 
-	//Variables for rotate method
-	_stepDegrees = stepDegrees;
-	_isRotating = false; //Boolean to keep track if the robot is in the rotate method
-	//Keep track of values needed to turn correctly
-	this->gyro = gyro;
-	_turnRight = false;
-	_desiredDegrees = 0; //Set initial desired degrees to be the initial degrees read in
-	_leftDegrees = 0.0;
-	_rightDegrees = 0.0;
-	_turnDeadzone = turnDeadzone;//+- degrees acceptable
+    //Variables for rotate method
 
-	//Set PID variables
-	_previousTime = 0;
-	_previousError = 0;
-	_integral = 0;
-	_kp = kp;
-	_ki = ki;
-	_kd = kd;
+    _rotations = rotations;
+    _isRotating = false; //Boolean to keep track if the robot is in the rotate method
+    _stepNum = 0;
+    //Keep track of values needed to turn correctly
+    this->gyro = gyro;
+    _turnRight = false;
+    _desiredDegrees = 0; //Set initial desired degrees to be the initial degrees read in
+    drivingDegrees = 0; //Set driving degrees to be initially 0
+    _leftDegrees = 0.0;
+    _rightDegrees = 0.0;
+    _turnDeadzone = turnDeadzone;//+- degrees acceptable
+	_robotStopDist = robotStopDist; 
+	_robotTurnRadius = robotTurnRadius; 
+	_robotCenter = robotCenter;
+    //Set PID variables
+    _previousTime = 0;
+    _previousError = 0;
+    _integral = 0;
 }
 
 /**
@@ -60,73 +61,82 @@ Drivetrain::~Drivetrain()
  * Public Methods *
  ******************/
 
-/**
-* Uses PID control to go forward, trying to keep the robot aligned with _center given the currentValue passed into the function.
-*/
-void Drivetrain::goToFishPID(float currentValue, unsigned long currentTime)
+void Drivetrain::resetIntegral()
 {
-	//Determine PID output
-	int dt = currentTime - _previousTime; //Find how long has passed since the last adjustment.
-	_previousTime = currentTime;
-	//Serial.print("Dt: ");
-	//Serial.println(dt);
-	
-	//Determine error; how far off the robot is from _center
-	float error = _center - currentValue;
-	//Serial.print("block.x:");
-	//Serial.println(block.x);
-	//Serial.print("Error: ");
-	//Serial.println(error);
+    _integral = 0;
+}
 
-	//Determine integral; sum of all errors
-	_integral += error*dt / 1000.0f; //Divide by 1000 because dt is milliseconds, adjust for seconds
-	//Serial.print("Integral: ");
-	//Serial.println(_integral);
+/**
+* Uses PID control to go forward, trying to keep the robot aligned with the desired value passed into the function.
+* Returns the error.
+*/
+float Drivetrain::goUsingPID(float currentValue, float desiredValue, float* PIDconsts, unsigned long currentTime)
+{
+    //Determine PID output
+    static int dt = 0;
+    (currentTime != _previousTime) ? dt = currentTime - _previousTime:1;//Find how long has passed since the last adjustment.
+    _previousTime = currentTime;
+//Serial.print("Dt: ");
+//Serial.print(dt);
+    
+    //Determine error; how far off the robot is from desired value
+    float error = currentValue - desiredValue;
 
-	//Determine derivative; rate of change of errors
-	float derivative = 1000.0f*(error - _previousError) / dt; //Multiply by 1000 because dt is milliseconds, adjust for seconds
-	//Serial.print("Derivative: ");
-	//Serial.println(derivative);
-	
-	//Determine output
-	int output = (int) (_kp*error + _ki*_integral + _kd*derivative);
-	//Serial.print("Output: ");
-	//Serial.println(output);
+//Serial.print("Error: ");
+//Serial.print(error);
+    
+    //Determine integral; sum of all errors
+    _integral += error*dt / 1000.0f; //Divide by 1000 because dt is milliseconds, adjust for seconds
+//Serial.print("\tIntegral: ");
+//Serial.print(_integral);
+    
+    //Determine derivative; rate of change of errors
+    float derivative = 1000.0f*(error - _previousError) / dt; //Multiply by 1000 because dt is milliseconds, adjust for seconds
+//Serial.print("\tDerivative: ");
+//Serial.print(derivative);
+    
+    //Determine output
+    int output = (int) (PIDconsts[0]*error + PIDconsts[1]*_integral + PIDconsts[2]*derivative);
+//Serial.print("\tOutput: ");
+//Serial.print(output);
+    
+    _previousError = error;
+    
+    //Go to the fish with the adjusted power values.
+    //Before adjustment for PWM limits
+    int rightPower = _power + output;
+    int leftPower = _power - output;
+    
+    //After adjustment for PWM limits
+    if(rightPower < 0)
+    {
+        rightPower = 0;
+    }
+    else if(rightPower > 255)
+    {
+        rightPower = 255;
+    }
+    if(leftPower < 0)
+    {
+        leftPower = 0;
+    }
+    else if(leftPower > 255)
+    {
+        leftPower = 255;
+    }
+//Serial.print("\t");
+//Serial.print("Rpower: ");
+//Serial.print(rightPower);
+//Serial.print("\t");
+//Serial.print("LPower: ");
+//Serial.println(leftPower);
 
-	_previousError = error;
-
-	//Go to the fish with the adjusted power values.
-	//Before adjustment for PWM limits
-	int rightPower = _power + output;
-	int leftPower = _power - output;
-
-	//After adjustment for PWM limits
-	if(rightPower < 0)
-	{
-		rightPower = 0;
-	}
-	else if(rightPower > 255)
-	{
-		rightPower = 255;
-	}
-	if(leftPower < 0)
-	{
-		leftPower = 0;
-	}
-	else if(leftPower > 255)
-	{
-		leftPower = 255;
-	}
-	//Serial.print("Right power: ");
-	//Serial.println(rightPower);
-	//Serial.print("Left Power: ");
-	//Serial.println(leftPower);
-
-	//Go with new adjustments
-	analogWrite(_rightMotorForward, rightPower);
-	analogWrite(_rightMotorBackward, 0);
-	analogWrite(_leftMotorForward, leftPower);
-	analogWrite(_leftMotorBackward, 0);
+    //Go with new adjustments
+    analogWrite(_rightMotorForward, rightPower);
+    analogWrite(_rightMotorBackward, 0);
+    analogWrite(_leftMotorForward, leftPower);
+    analogWrite(_leftMotorBackward, 0);
+    return error;
 }
 
 /**
@@ -134,7 +144,7 @@ void Drivetrain::goToFishPID(float currentValue, unsigned long currentTime)
  */
 void Drivetrain::setCenter(float desiredCenter)
 {
-	_center = desiredCenter;
+    _center = desiredCenter;
 }
 
 /**
@@ -142,7 +152,7 @@ void Drivetrain::setCenter(float desiredCenter)
 */
 float Drivetrain::getCenter()
 {
-	return _center;
+    return _center;
 }
 
 /**
@@ -152,57 +162,245 @@ float Drivetrain::getCenter()
 */
 boolean Drivetrain::rotateDegrees(byte stepNum, byte power)
 {
-	if(!_isRotating) //If the robot is not currently rotating and this method is called, determine the values needed for the upcoming rotation
-	{
-		//Set the robots required degrees based on the initial degrees and the degrees required by the step
-		//Increments desired degrees by what step we're on. So if we turn right 45 deg and left 45 deg, it will be back at the initial heading(which is what we want)
-		_desiredDegrees += _stepDegrees[stepNum - 1]; 
-		//Set desiredDegrees so that it is <180 and >=0
-		if(_desiredDegrees >= 360)
-		{
-			_desiredDegrees -= 360;
-		}
-		else if(_desiredDegrees < 0)
-		{
-			_desiredDegrees += 360;
-		}
-	}
-	else
-	{
-		//Robot is currently rotating, values not needed to be computed
-	}
-
-	//Turn the robot until the heading measured by the gyro is the correct heading determined by degrees
 	float currentDegrees = gyro->getDegrees();
-	//Check if robot has turned far enough
-	//Calculate the angle between the desired and current degrees.
-	//After corrections, negative diff means the robot should turn left. positive means it should turn right.
-	float diff = _desiredDegrees - currentDegrees;
-	if(diff > 180.0f) diff -= 360;
-	if(diff < -180.0f) diff += 360;
-	if(abs(diff) < _turnDeadzone)
-	{
-		//Serial.println("Done rotating!");
-		//Robot has rotated the correct amount
-		stopMotors();
-		_isRotating = false;
-		return true;
-	}
-	else //Robot has not rotated the correct amount, continue rotating
-	{
-		//Serial.println("--- Not rotated far enough: ---");		
-		if(diff < 0)
+
+    if(!_isRotating) //If the robot is not currently rotating and this method is called, determine the values needed for the upcoming rotation
+    {
+		
+        //Set the robots required degrees based on the initial degrees and the degrees required by the step
+        //Increments desired degrees by what step we're on. So if we turn right 45 deg and left 45 deg, it will be back at the initial heading(which is what we want)
+		_desiredDegrees = determineNextAngle(_rotations[stepNum - 1], currentDegrees);
+        drivingDegrees = _desiredDegrees; //Update driving degrees when we rotate
+        //Set desiredDegrees so that it is <180 and >=0
+        if(_desiredDegrees >= 360)
+        {
+            _desiredDegrees -= 360;
+        }
+        else if(_desiredDegrees < 0)
+        {
+            _desiredDegrees += 360;
+        }
+    }
+    else
+    {
+        //Robot is currently rotating, values not needed to be computed
+    }
+
+    //Turn the robot until the heading measured by the gyro is the correct heading determined by degrees
+    //Serial.print(currentDegrees);
+    //Serial.print("\t");
+    //Serial.println(_desiredDegrees);
+    //Check if robot has turned far enough
+    //Calculate the angle between the desired and current degrees.
+    //After corrections, negative diff means the robot should turn left. positive means it should turn right.
+    float diff = _desiredDegrees - currentDegrees;
+    if(diff > 180.0f) diff -= 360;
+    if(diff < -180.0f) diff += 360;
+    if(abs(diff) < _turnDeadzone)
+    {
+        //Robot has rotated the correct amount
+        stopMotors();
+        _isRotating = false;
+        return true;
+    }
+    else //Robot has not rotated the correct amount, continue rotating
+    {		
+		if (_rotations[stepNum - 1].rotationType == 0) //stationary rotation
 		{
-			//Serial.println("turn left");
-			turnLeft(power);
+			turnStationary(_power, diff > 0); //turn based on the difference
+		}
+		else//Sweep
+		{
+			turnSweep(_power, _rotations[stepNum - 1].direction, diff > 0);
+		}
+        _isRotating = true;
+        return false;
+    }
+}
+
+/**
+* Rotates an amount based on what step we're on.
+* Returns false if the robot has not rotated the correct amount, otherwise
+* returns true when the robot has rotated the required amount. Internally the step
+* is updated so the next time the function is called it will rotate to the desired degrees.
+*/
+boolean Drivetrain::rotateToNextPosition()
+{
+    static boolean incStepNum = true;
+
+    if (incStepNum)
+    {
+        _stepNum++;
+        incStepNum = false;
+    }
+    if (rotateDegrees(_stepNum, _power)) //Rotate to the angle provided by current step using default power
+    {
+        //when we've reached the correct angle
+        incStepNum = true;
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Drives to the next position using the PID based on the gyroscope 
+ */
+void Drivetrain::driveToNextPosition(unsigned long currentTime)
+{
+    //get current gyro readings
+    float currentDegrees = gyro->getDegrees();
+    //Calculate the angle between the driving degrees and current degrees.
+    //After corrections, negative diff means the robot should turn left. positive means it should turn right.
+	float diff = drivingDegrees - currentDegrees;
+    if (diff > 180.0f) diff -= 360;
+    if (diff < -180.0f) diff += 360;
+
+    //go in a straight line based on gyro
+    goUsingPID(diff, 0, gyro->_PIDconsts, currentTime);
+}
+
+/**
+ * Rotations should have:
+ *	-angleFromVertical
+ *	-length
+ */
+double Drivetrain::determineNextAngle(Rotation nextFishValues, float currentDegrees)
+{
+	double _robotStopDist	= 4.0;
+	double _robotTurnRadius = 8.0;
+	double _robotCenter		= 2.0;
+
+	//Find angle: robot_old fish_new fish
+	double diff1 = nextFishValues.angleFromVertical - currentDegrees;
+	if (diff1 > 180) diff1 -= 360;
+	if (diff1 < -180) diff1 += 360;
+	bool flipped1 = false;
+	if (diff1 < 0) flipped1 = true;
+	double angle1Deg = 180 - abs(diff1);
+	double angle1Rad = angle1Deg / 180.0 * M_PI;
+
+	//Find distance: robot_new fish
+	double distToFish = sqrt(pow(nextFishValues.length, 2) + pow(_robotStopDist, 2) - 2 * nextFishValues.length * _robotStopDist * cos(angle1Rad));
+
+	//find angle: old fish_robot_new fish
+	double angle2Rad = acos((pow(_robotStopDist, 2) + pow(distToFish, 2) - pow(nextFishValues.length, 2)) / (2 * _robotStopDist * distToFish));
+	double angle2Deg = angle2Rad * 180 / M_PI;
+
+	//find angle from vertical to distToFish
+	double newHeading1 = (flipped1) ? currentDegrees - angle2Deg : currentDegrees + angle2Deg;
+	if (newHeading1 > 360) newHeading1 -= 360;
+	if (newHeading1 < 0) newHeading1 += 360;
+
+	//Find the second heading(for rotating about one wheel)
+	if (nextFishValues.rotationType == 1)
+	{
+		//find small chord angle
+		double diff2 = angle2Deg - 90;
+		bool flipped2 = false;
+		if (diff2 < 0) flipped2 = true;
+		double complementDiff2Deg = 180 - abs(diff2);
+		double complementDiff2Rad = complementDiff2Deg / 180 * M_PI;
+		double smallChordAngleRad = asin((_robotTurnRadius - _robotCenter) * sin(complementDiff2Rad) / _robotTurnRadius);
+		double smallChordAngleDeg = smallChordAngleRad * 180 / M_PI;
+		if (flipped1)
+		{
+			smallChordAngleDeg = 180 - smallChordAngleDeg;
+		}
+
+		//find large chord angle
+		double largeChordAngleDeg = 180 - smallChordAngleDeg * 2;
+		double largeChordAngleRad = largeChordAngleDeg / 180 * M_PI;
+
+		//find chord length
+		double chordLength = sqrt(2 * pow(_robotTurnRadius, 2) * (1 - cos(largeChordAngleRad)));
+
+		//Find smallest path to fish
+		double angleCDeg = 180 - smallChordAngleDeg - complementDiff2Deg;
+		double angleCRad = angleCDeg / 180 * M_PI;
+		double splitLength = sqrt(pow(_robotTurnRadius - _robotCenter, 2) + pow(_robotTurnRadius, 2) - 2 * (_robotTurnRadius - _robotCenter) * _robotTurnRadius * cos(angleCRad));
+		double smallDistToFish = (flipped1) ? distToFish - chordLength - splitLength : distToFish - splitLength;
+		//find tangent line length
+		double tangentLength = sqrt(smallDistToFish*(smallDistToFish + chordLength));
+
+		//calculate intersection points of circles
+		struct Point
+		{
+			float x;
+			float y;
+			Point operator +(Point p)
+			{
+				return Point{ x + p.x, y + p.y };
+			}
+			Point operator -(Point p)
+			{
+				return Point{ x - p.x, y - p.x };
+			}
+			Point operator *(double scalar)
+			{
+				return Point{ x * scalar, y * scalar };
+			}
+			float distance(Point p)
+			{
+				return sqrt(pow(x - p.x, 2) + pow(y - p.y, 2));
+			}
+		};
+		struct Circle
+		{
+			Point center;
+			float r;
+			void intersect(Circle c, Point* intersection1, Point* intersection2)
+			{
+				Point P0(center);
+				Point P1(c.center);
+				float d, a, h;
+				d = P0.distance(P1);
+				a = (r*r - c.r*c.r + d*d) / (2 * d);
+				h = sqrt(r*r - a*a);
+				Point P2 = P0 + (P1 - P0) * (a / d);
+				float x3, y3, x4, y4;
+				x3 = P2.x + h*(P1.y - P0.y) / d;
+				y3 = P2.y - h*(P1.x - P0.x) / d;
+				x4 = P2.x - h*(P1.y - P0.y) / d;
+				y4 = P2.y + h*(P1.x - P0.x) / d;
+
+				*intersection1 = Point{ x3, y3 };
+				*intersection2 = Point{ x4, y4 };
+			}
+		};
+		Point center1{ 0, 0 };
+		Point center2{ -tangentLength, _robotTurnRadius };
+		Circle circle1{ center1, smallDistToFish };
+		Circle circle2{ center2, _robotTurnRadius };
+
+		//Get pair of intersections
+		Point intersection1;
+		Point intersection2;
+		circle1.intersect(circle2, &intersection1, &intersection2);
+
+		//Get desired point
+		Point desiredPoint;
+		if (flipped2)
+		{
+			desiredPoint = intersection2;
 		}
 		else
 		{
-			//Serial.println("turn right");
-			turnRight(power);
+			desiredPoint = intersection1;
 		}
-		_isRotating = true;
-		return false;
+
+		//Get angle of tangent line of turn radius to new fish between the line from the robot to the new fish
+		float angle3Rad = atan(desiredPoint.y / desiredPoint.x);
+		float angle3Deg = angle3Rad * 180 / M_PI;
+
+		//get new heading 2
+		float newHeading2 = newHeading1 + angle3Deg;
+		if (newHeading2 > 360) newHeading2 -= 360;
+		if (newHeading2 < 0) newHeading2 += 360;
+		return newHeading2;
+	}
+	else
+	{
+		return newHeading1;
 	}
 }
 
@@ -211,161 +409,66 @@ boolean Drivetrain::rotateDegrees(byte stepNum, byte power)
 */
 void Drivetrain::stopMotors()
 {
-	analogWrite(_rightMotorForward, 100);
-	analogWrite(_rightMotorBackward, 100);
-	analogWrite(_leftMotorForward, 100);
-	analogWrite(_leftMotorBackward, 100);
+    analogWrite(_rightMotorForward, 100);
+    analogWrite(_rightMotorBackward, 100);
+    analogWrite(_leftMotorForward, 100);
+    analogWrite(_leftMotorBackward, 100);
 }
 
 /**
- * Give the left forward motor power.
- */
-void Drivetrain::turnRight(byte power)
-{
-	analogWrite(_rightMotorForward, 0);
-	analogWrite(_rightMotorBackward, 0);
-	analogWrite(_leftMotorForward, power);
-	analogWrite(_leftMotorBackward, 0);
-}
-
-/**
- * Give the right forward motor power.
- */
-void Drivetrain::turnLeft(byte power)
-{
-	analogWrite(_rightMotorForward, power);
-	analogWrite(_rightMotorBackward, 0);
-	analogWrite(_leftMotorForward, 0);
-	analogWrite(_leftMotorBackward, 0);
-}
-
-//old methods
-
-/**
-* Gives all forward motors power. Since our motors move at different rates given the same power, it will inevitably turn.
-* Need encoders or a reference (like the pixy) to go in a straight line.
+* Give both wheels power to rotate on a dime.
 */
-void Drivetrain::goStraight(byte power)
+void Drivetrain::turnStationary(byte power, boolean right)
 {
-	analogWrite(_rightMotorForward, power);
-	analogWrite(_rightMotorBackward, 0);
-	analogWrite(_leftMotorForward, power);
-	analogWrite(_leftMotorBackward, 0);
-}
-
-/**
-* Gives power to motors, keeping the center of the block aligned with the requested center
-* set in the Drivetrain constructor.
-*/
-void Drivetrain::goToFish(Block block)
-{
-	//If the center of the block is on the left side of the camera
-	if(block.x < _center)
+	if (right) //rotate right
 	{
-		turnLeft(_power);
+		analogWrite(_rightMotorForward, 0);
+		analogWrite(_rightMotorBackward, power);
+		analogWrite(_leftMotorForward, power);
+		analogWrite(_leftMotorBackward, 0);
 	}
-	//If the center of the block is on the right side of the camera
-	else if(block.x > _center)
+	else //rotate left
 	{
-		turnRight(_power);
-	}
-	//The center of the block is in the center of the camera
-	else
-	{
-		goStraight(_power);
+		analogWrite(_rightMotorForward, power);
+		analogWrite(_rightMotorBackward, 0);
+		analogWrite(_leftMotorForward, 0);
+		analogWrite(_leftMotorBackward, power);
 	}
 }
 
 /**
-* Rotates an amount based on what step we're on. StepNum > 0
+* Give a single motor power to sweep out an area.
 */
-void Drivetrain::rotate(byte stepNum)
+void Drivetrain::turnSweep(byte power, boolean right, boolean backwards)
 {
-	int time = _stepDegrees[stepNum - 1];
-
-	switch(stepNum)
+	if (right)//Sweep right
 	{
-		case 1: turnRight(_power); //At fish 1, turn to fish 2
-			delay(time);
-			stopMotors();
-			break;
-		case 2: turnLeft(_power); //At fish 2, turn to fish 3
-			delay(time);
-			stopMotors();
-			break;
-		case 3: turnLeft(_power); //At fish 3, turn to fish 4
-			delay(time);
-			stopMotors();
-			break;
-
-			//Turn to face the outer ring of fish
-		case 4: turnRight(_power); //At fish 4, turn to fish 5
-			delay(time);
-			stopMotors();
-			break;
-		case 5: turnLeft(_power); //At fish 5, turn to fish 6
-			delay(time);
-			stopMotors();
-			break;
-		case 6: turnLeft(_power); //At fish 6, turn to fish 7
-			delay(time);
-			stopMotors();
-			break;
-		case 7: turnLeft(_power); //At fish 7, turn to fish 8
-			delay(time);
-			stopMotors();
-			break;
-		case 8: turnLeft(_power); //At fish 8, turn to fish 9
-			delay(time);
-			stopMotors();
-			break;
-		case 9: turnLeft(_power); //At fish 9, turn to fish 10
-			delay(time);
-			stopMotors();
-			break;
-		case 10: turnLeft(_power); //At fish 10, turn to fish 11
-			delay(time);
-			stopMotors();
-			break;
-		case 11: turnLeft(_power); //At fish 11, turn to fish 12
-			delay(time);
-			stopMotors();
-			break;
-
-			//End of fish collection route
-		case 12: turnRight(_power); //At fish 12, face bin 1
-			delay(time);
-			stopMotors();
-			break;
-		case 13: turnLeft(_power); //At bin 1, reposition for dumping
-			delay(time);
-			stopMotors();
-			break;
-		case 14: turnLeft(_power); //At bin 1, face bin 2
-			delay(time);
-			stopMotors();
-			break;
-		case 15: turnLeft(_power); //At bin 2, reposition for dumping
-			delay(time);
-			stopMotors();
-			break;
-		case 16: turnLeft(_power); //At bin 2, face bin 3
-			delay(time);
-			stopMotors();
-			break;
-		case 17: turnLeft(_power); //At bin 3, reposition for dumping
-			delay(time);
-			stopMotors();
-			break;
-		case 18: turnLeft(_power); //At bin 3, face bin 4
-			delay(time);
-			stopMotors();
-			break;
-		case 19: turnLeft(_power); //At bin 4, reposition for dumping
-			delay(time);
-			stopMotors();
-			break;
+		if (backwards) //Go backwards
+		{
+			analogWrite(_leftMotorForward, 0);
+			analogWrite(_leftMotorBackward, power);
+		}
+		else //Go forward
+		{
+			analogWrite(_leftMotorForward, power);
+			analogWrite(_leftMotorBackward, 0);
+		}
+		analogWrite(_rightMotorForward, 0);
+		analogWrite(_rightMotorBackward, 0);
+	}
+	else //Sweep left
+	{
+		if (backwards) //Go backwards
+		{
+			analogWrite(_rightMotorForward, 0);
+			analogWrite(_rightMotorBackward, power);
+		}
+		else //Go forward
+		{
+			analogWrite(_rightMotorForward, power);
+			analogWrite(_rightMotorBackward, 0);
+		}
+		analogWrite(_leftMotorForward, 0);
+		analogWrite(_leftMotorBackward, 0);
 	}
 }
-
-

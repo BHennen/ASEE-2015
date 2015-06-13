@@ -450,6 +450,7 @@ boolean Conveyor::storeFish(byte fishSignature, unsigned long currentTime)
 	switch (_dropOffState)
 	{
 	case goingToBin: //go to the correct bin based on the fish signature
+	{
 		if (goToBin(correctBin, currentTime))
 		{
 			//We made it to the correct bin
@@ -461,41 +462,61 @@ boolean Conveyor::storeFish(byte fishSignature, unsigned long currentTime)
 			//set next state to move the claw so we can drop off
 			_dropOffState = movingClaw;
 		}
+	}
 		break;
 	case movingClaw: //drop off the fish
-		if (rotateClaw(currentTime,false))
+	{
+		static unsigned long rotateTimer = currentTime;
+		const unsigned long rotateTime = 200;
+		if (rotateClaw(currentTime, false))
 		{
-			if (openClaw(currentTime))
+			static boolean setTimer = true;
+			if (setTimer)
 			{
-				//the claw is now open and the fish is dropped off, so go the the rest position
-				_dropOffState = goingToRest;
+				rotateTimer = currentTime;
+				setTimer = false;
+		
+			}
+			if (currentTime - rotateTimer >= rotateTime)
+			{
+				if (openClaw(currentTime))
+				{
+					if (rotateClaw(currentTime, true))
+					{
+						//the claw is now open and the fish is dropped off, so go the the rest position
+						_dropOffState = goingToRest;
+						setTimer = true;
+					}
+				}
 			}
 		}
+	}
 		break;
 	case goingToRest: //Go back to the resting position
-		if (currentPosition > BIN1)
+	{
+		closeClaw(currentTime);
+
+		static boolean rotateClawDown = false;
+		if (!_switchPressed && currentPosition <= 1)//Rotate claw & close it before getting to fish position
 		{
-			if (rotateClaw(currentTime, true))
-			{
-				closeClaw(currentTime);
-			}
+			rotateClawDown = true;
 		}
-		else
+		if (rotateClawDown)
 		{
-			if (rotateClaw(currentTime, false))
-			{
-				closeClaw(currentTime);
-			}
+			if (closeClaw(currentTime))	rotateClaw(currentTime, false);
 		}
+
 		if (goToBin(_restingPosition, currentTime))
 		{
 			//the conveyor is now at the resting position and out of the way of the pixy and other sensors.
+			rotateClawDown = false;
 			_dropOffState = goingToBin; //reset state
 			_hasFish = false;
 			determineCorrectBin = true; //reset bin finding for next time
 			return true; //The conveyor has dropped off the fish and is at the resting position. Return true
 		}
 		break;
+	}
 	}
 	return false; //the function returns false by default until the fish is dropped off and the claw is back at the resting position
 }
@@ -507,13 +528,16 @@ boolean Conveyor::rotateClaw(unsigned long currentTime, boolean rotateUp)
 {
 	static unsigned long numPartialRotations;
 	const unsigned long delayBetweenRotations = 5;
+	static int count = 0;
 	if (_clawRotatedUp == rotateUp) //The claw is already rotated to the desired position, return true
 	{
+		count = 0;
 		return true;
 	}
 	else if (!clawIsClosed) // the claw is open; no need to rotate it
 	{
 		_clawRotatedUp = rotateUp; //Set it so the claw is in the desired state
+		count = 0;
 		return true;
 	}
 	else if (!clawIsMoving) //The claw is closed, is in the incorrect position, and it is not in the process of moving
@@ -526,7 +550,6 @@ boolean Conveyor::rotateClaw(unsigned long currentTime, boolean rotateUp)
 	}
 	else //The claw is still rotating
 	{
-		static int count = 1;
 		//Move the servos to the upward position , one at a time
 		if (currentTime - previousTime >= delayBetweenRotations)
 		{
@@ -576,6 +599,8 @@ boolean Conveyor::rotateClaw(unsigned long currentTime, boolean rotateUp)
 			_clawRotatedUp = rotateUp;
 			clawIsMoving = false;
 			return true;
+
+			Serial.println("high count");
 		}
 		return false;
 	}

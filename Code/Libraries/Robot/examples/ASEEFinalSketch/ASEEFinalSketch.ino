@@ -46,13 +46,13 @@
  *___________|______________________________________________________________________________|________________________________*
  */
 
-const int testParam = 5;
+const int testParam = 4;
 
 const boolean binsEnabled = false;
-const boolean eyesEnabled = true;
+const boolean eyesEnabled = false;
 const boolean conveyorEnabled = true;
-const boolean wheelsEnabled = true;
-const boolean gyroEnabled = true;
+const boolean wheelsEnabled = false;
+const boolean gyroEnabled = false;
 
 /********
  * PINS *
@@ -96,9 +96,11 @@ float gyroRotatePIDconsts[3] = { gyroRotatekp, gyroRotateKi, gyroRotatekd };
 
 
 /*** EYES ***/
-const int stopVoltage = 530; //Voltage to stop the robot
-const int closeVoltage = 600; //voltage to position the robot
-const byte errorVoltage = 10;
+const int stopVoltage = 570; //not used
+const int closeVoltage = 570; //voltage to position the robot
+const byte errorVoltage = 5;
+const int peakVoltage = 615;
+const float IRconstantThreshold = 2.0;
 const unsigned long pixyStallTime = 300;
 byte getFishSigCount = 100;
 byte errorDeadzone = 2;
@@ -161,17 +163,17 @@ const byte turnDeadzone = 1;
 
 /*** CONVEYOR ***/
 //Claw
-const int frontUpwardAngle = 80;
-const int frontDownwardAngle = 0;
-const int backUpwardAngle = 155;
-const int backDownwardAngle = 75;
+const int frontUpwardAngle = 180;
+const int frontDownwardAngle = 50;
+const int backUpwardAngle = 175;
+const int backDownwardAngle = 90;
 const unsigned long clawMovingTime = 400UL; //How long the system should wait before the claw is done opening and closing
-const unsigned long clawRotatingTime = 250UL; //How long the system should wait before the claw is done rotating
+const unsigned long clawRotatingTime = 100UL; //How long the system should wait before the claw is done rotating
 
 //Conveyor motor powers
 const byte conveyorBeltPower = 150;
-const byte conveyorRotatorUpPower = 175;
-const byte conveyorRotatorDownPower = 75;
+const byte conveyorRotatorUpPower = 185;
+const byte conveyorRotatorDownPower = 65;
 const byte conveyorRotatorStopPower = 100;
 
 //Conveyor positions
@@ -198,7 +200,8 @@ void setup()
 	Serial.begin(9600);
 
 	//Construct objects that are enabled; otherwise set them to nullptrs
-	eyes = (eyesEnabled) ? new VisualSensor(IRPort, stopVoltage, closeVoltage, errorVoltage, center, errorDeadzone, pixyStallTime,
+	eyes = (eyesEnabled) ? new VisualSensor(IRPort, stopVoltage, closeVoltage, errorVoltage, peakVoltage,
+		center, errorDeadzone, pixyStallTime, IRconstantThreshold,
 		blockScoreConsts, pixyPIDconsts, pixyRotatePIDconsts, minimumBlockScore, minimumBlockSize, maximumBlockY,
 		getFishSigCount) : 0;
 	gyro = (gyroEnabled) ? new Gyro(gyroPIDconsts, gyroRotatePIDconsts) : 0;

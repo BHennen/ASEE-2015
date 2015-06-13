@@ -9,7 +9,8 @@
  * _stopVoltage: Set the stop voltage; The robot should stop whenever the
  *               input voltage from the IR sensor is greater than this voltage.
  */
-VisualSensor::VisualSensor(const char IRPort, const int stopVoltage, const int closeVoltage, byte errorVoltage, int center, byte errorDeadzone, unsigned long pixyStallTime,
+VisualSensor::VisualSensor(const char IRPort, const int stopVoltage, const int closeVoltage, byte errorVoltage, int peakVoltage,
+	int center, byte errorDeadzone, unsigned long pixyStallTime, float IRConstantThreshold,
 	float* blockScoreConsts, float* PIDconsts, float* pixyRotatePIDconsts, float minimumBlockScore, float minimumBlockSize, float maximumBlockY,
 	byte getFishSigCount)
 {
@@ -49,7 +50,11 @@ VisualSensor::VisualSensor(const char IRPort, const int stopVoltage, const int c
 	_stopVoltage = stopVoltage;
 	_closeVoltage = closeVoltage;
 	_errorVoltage = errorVoltage;
+	_peakVoltage = peakVoltage;
+	_IRConstantThreshold = IRConstantThreshold;
 	_isClose = false;
+	_IRisConstant = false;
+	_IRaverage = -1;
 
 	_errorDeadzone = errorDeadzone;
 }
@@ -88,7 +93,7 @@ boolean VisualSensor::isGoodBlock(Block targetBlock)
 	{
 		return true;
 	}
-	else return false;	
+	else return false;
 }
 
 /**
@@ -100,7 +105,7 @@ float VisualSensor::getBlockScore(Block block, boolean print)
 	float center = _blockScoreConsts[0] * (abs(_center - (int)block.x));
 	float bottomLine = _blockScoreConsts[1] * ((int)block.y + (int)block.height / 2); //find the bottom line of the lowest fish (bigger y is closer to ground)
 	float score = (bottomLine - center); //factor in how low the block is, how close it is to center, and how far away we are
-	
+
 	if (print)
 	{
 		Serial.print("Sig = ");
@@ -126,8 +131,8 @@ float VisualSensor::getBlockScore(Block block, boolean print)
  * 4) Increments the number of times the block with the highest score is seen.
  */
 Block VisualSensor::getBlock(unsigned long currentTime)
-{	
-	Block block = badBlock;	
+{
+	Block block = badBlock;
 
 	float maxScore = -999999999;
 	//Get the number of blocks(detected objects) from the pixy
@@ -169,7 +174,7 @@ Block VisualSensor::getBlock(unsigned long currentTime)
 	if (block.signature != badBlock.signature)
 	{
 		if (maxScore > _minimumBlockScore)
-		{			
+		{
 			//getBlockScore(block, true);
 			incrementBlocks(block);
 			return block;
@@ -195,7 +200,7 @@ void VisualSensor::incrementBlocks(Block block)
 * and resets the counts back to 0 if desired
 */
 int VisualSensor::getFishSignature(boolean resetCounts)
-{	
+{
 	int maxCount = 0;
 	int sig = 1;
 	//loop through all the block counts
@@ -206,10 +211,10 @@ int VisualSensor::getFishSignature(boolean resetCounts)
 			maxCount = blockCounts[block]; //Set the max count
 			sig = block + 1; //Set the signature (+1 because it is 1 indexed)
 		}
-		if(resetCounts) blockCounts[block] = 0; //reset sig counts
+		if (resetCounts) blockCounts[block] = 0; //reset sig counts
 	}
 	_signature = sig;
-	return blockCounts[sig-1];
+	return blockCounts[sig - 1];
 }
 
 /**
@@ -222,39 +227,67 @@ void VisualSensor::update(unsigned long currentTime)
 	static unsigned long previousTime = currentTime;
 	static boolean debouncedIR = false;
 	const unsigned long CHECK_MSEC = 1;
-	const unsigned long PRESS_MSEC = 3;
-	const unsigned long RELEASE_MSEC = 3;
+	//const unsigned long PRESS_MSEC = 5;
+	//const unsigned long RELEASE_MSEC = 3;
 
+	const int numProximities = 10;
+	static int lastProximities[numProximities];
+	static int lastSlopes[numProximities - 1];
 	if (currentTime - previousTime >= CHECK_MSEC)
 	{
-		previousTime = currentTime;
-		static uint8_t count = RELEASE_MSEC / CHECK_MSEC;
+		_proximity = analogRead(_IRPort);
 
-		int voltage = readProximity();
-		int error = _stopVoltage - voltage;
-		boolean rawState = (abs(error) < _errorVoltage);
-		if (rawState == debouncedIR)
+		//find the exponential average
+	
+		const float newValueWeight = 0.3;
+		_IRaverage = (_IRaverage > 0) ? (1 - newValueWeight) * _IRaverage + newValueWeight * _proximity : _proximity;
+
+		//find if the IR is constant
+		float temp = lastProximities[0];
+		lastProximities[0] = _proximity;
+		//Shift in the newest proximity
+		for (byte i = 1; i < numProximities; i++)
 		{
-			// Set the timer which allows a change from current state.
-			if (debouncedIR) count = RELEASE_MSEC / CHECK_MSEC;
-			else count = PRESS_MSEC / CHECK_MSEC;
+			float temp2 = lastProximities[i];
+			lastProximities[i] = temp;
+			temp = temp2;
 		}
-		else
+		int slopeSum = 0;
+		for (byte i = 0; i < numProximities-1; i++)
 		{
-			// Key has changed - wait for new state to become stable.
-			if (--count == 0) {
-				// Timer expired - accept the change.
-				debouncedIR = rawState;
-				_isClose = debouncedIR;
-				// And reset the timer.
-				if (debouncedIR) count = RELEASE_MSEC / CHECK_MSEC;
-				else count = PRESS_MSEC / CHECK_MSEC;
-			}
+			lastSlopes[i] = lastProximities[i] - lastProximities[i + 1];
+			slopeSum += lastSlopes[i];
 		}
+		float slope = slopeSum / (numProximities - 1.0f);
+		_IRisConstant = (abs(slope) < _IRConstantThreshold);
+
+		////find it the IR is pressed
+		//previousTime = currentTime;
+		//static uint8_t count = RELEASE_MSEC / CHECK_MSEC;
+		//
+		//int voltage = readProximity();
+		//int error = _stopVoltage - voltage;
+		//boolean rawState = (abs(error) < _errorVoltage);
+		//if (rawState == debouncedIR)
+		//{
+		//	// Set the timer which allows a change from current state.
+		//	if (debouncedIR) count = RELEASE_MSEC / CHECK_MSEC;
+		//	else count = PRESS_MSEC / CHECK_MSEC;
+		//}
+		//else
+		//{
+		//	// Key has changed - wait for new state to become stable.
+		//	if (--count == 0) {
+		//		// Timer expired - accept the change.
+		//		debouncedIR = rawState;
+		//		_isClose = debouncedIR;
+		//		// And reset the timer.
+		//		if (debouncedIR) count = RELEASE_MSEC / CHECK_MSEC;
+		//		else count = PRESS_MSEC / CHECK_MSEC;
+		//	}
+		//}
 	}
-	Serial.print("\t");
-	_isClose = debouncedIR;
-	Serial.println(_isClose);
+	//_isClose = debouncedIR;
 }
 
 boolean VisualSensor::detectIRChange(unsigned long currentTime)
@@ -270,7 +303,7 @@ boolean VisualSensor::detectIRChange(unsigned long currentTime)
 	static float M3 = 0.0f;
 	const float breakPoint = 4.0f;
 	const float newValWeight = 0.05f;
-	const int sampleAmount = 5;		
+	const int sampleAmount = 5;
 	const float threshold = 500;
 
 	//measure a new sample
@@ -293,11 +326,11 @@ boolean VisualSensor::detectIRChange(unsigned long currentTime)
 
 	//calculate new average value
 	float delta = currReading - averageVal;
-	averageVal = (1-newValWeight) * averageVal + newValWeight * currReading; //calculate exponential weighted average
+	averageVal = (1 - newValWeight) * averageVal + newValWeight * currReading; //calculate exponential weighted average
 	float newDelta = currReading - averageVal;
 
 	//calculate avg rate of change of the average
-	float dtAvg = (dt!=0) ? (averageVal - prevAvg) / dt : 0;
+	float dtAvg = (dt != 0) ? (averageVal - prevAvg) / dt : 0;
 	float deltaAvg = dtAvg - avgDeltaAvg;
 	avgDeltaAvg = (1 - newValWeight) * avgDeltaAvg + newValWeight * dtAvg;
 	float newDeltaAvg = dtAvg - avgDeltaAvg;
@@ -323,7 +356,7 @@ boolean VisualSensor::detectIRChange(unsigned long currentTime)
 	Serial.print("\t");
 	Serial.println(avgSigma);
 
-	if (abs(newDeltaAvg / avgSigma) > breakPoint )
+	if (abs(newDeltaAvg / avgSigma) > breakPoint)
 	{
 		reset = true;
 		return true;
@@ -339,8 +372,7 @@ boolean VisualSensor::detectIRChange(unsigned long currentTime)
  */
 int VisualSensor::readProximity()
 {
-	int voltage = analogRead(_IRPort);
-	return voltage;
+	return _proximity;
 }
 
 //Constructor

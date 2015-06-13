@@ -64,7 +64,8 @@ public:
 	 * _stopVoltage: Set the stop voltage; The robot should stop whenever the
 	 *               input voltage from the IR sensor is greater than this voltage.
 	 */
-	VisualSensor(const char IRPort, const int stopVoltage, const int closeVoltage, byte errorVoltage, int center, byte errorDeadzone, unsigned long pixyUpdateTime,
+	VisualSensor(const char IRPort, const int stopVoltage, const int closeVoltage, byte errorVoltage, int peakVoltage,
+		int center, byte errorDeadzone, unsigned long pixyUpdateTime, float IRConstantThreshold,
 		float* blockScoreConsts, float* PIDconsts, float* pixyRotatePIDconsts, float minimumBlockScore, float minimumBlockSize, float maximumBlockY,
 		byte getFishSigCount);
 
@@ -120,12 +121,17 @@ public:
 	float* _pixyRotatePIDconsts;
 	byte _signature;
 	int _stopVoltage; 
-	int _closeVoltage;
+	int _closeVoltage; 
+	float _IRaverage;
+	boolean _IRisConstant;
 	byte _errorDeadzone;
 	unsigned long _pixyStallTime;
 	boolean _isClose;
 	byte _errorVoltage;
+	int _peakVoltage;
+	float _IRConstantThreshold;
 private:
+	int _proximity;
 	float getHypotenuse(Block block); //Finds the hypotenuse of the block's x and y coordinates to the center bottom of the pixy
 	Pixy _pixy; //Variable for pixy camera
 	char _IRPort; //The port for the IR sensor

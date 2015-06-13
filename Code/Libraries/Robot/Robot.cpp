@@ -113,6 +113,11 @@ boolean ASEE2015::go()
 					printed = true;
 				}
 
+				if (goFinalRun(currentTime))
+				{
+					completed = true;
+				}
+
 				break;
 			case 2:
 				if (!printed)
@@ -220,6 +225,18 @@ boolean ASEE2015::go()
 	return completed;
 }
 
+boolean ASEE2015::goFinalRun(unsigned long currentTime)
+{
+	if (collectFish(currentTime))
+	{
+		if (dumpFish(currentTime))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 boolean ASEE2015::goToBinAndStop(unsigned long currentTime)
 {
 	//Check if we're close to a bin
@@ -249,21 +266,22 @@ boolean ASEE2015::goToFishAndStop(unsigned long currentTime)
 		repositioning,
 		makingFishFlat,
 	};
-	static goingStates goingState = usingGyro;
+	static goingStates goingState = makingFishFlat;
 	static boolean lockedOn = false;
 	boolean isGoodBlock = false;
 	static double repositionAngle;
 	Block targetBlock;
+	static boolean peaked = false;
 
 
 
 	//Check what state we should be in
-	//Check if we're close to a fish
-	if (_eyes->readProximity() > _eyes->_closeVoltage)
+	//Check if the IR sensor peaked
+	if (!peaked && _eyes->readProximity() > _eyes->_peakVoltage)
 	{
 		//if (goingState != makingFishFlat) _wheels->stopMotors();
+		peaked = true;
 		goingState = makingFishFlat;
-		_eyes->getFishSignature(true);//Set the fish signature 
 		lockedOn = false;
 	}
 	else //We're not close
@@ -410,28 +428,39 @@ boolean ASEE2015::goToFishAndStop(unsigned long currentTime)
 	case makingFishFlat: //make the fish flat somehow
 	{
 		//Serial.println("making fish flat");
-		
-		const unsigned long fishFlatteningTime = 500;
-		static boolean isFlat = true;
-
-		//Make flat with robot
-		if (!isFlat)
+		//Serial.println(_eyes->readProximity());
+		if (!peaked)
 		{
-			if (_eyes->_isClose) isFlat = true; //once we're close, we're flat
+			_wheels->driveToNextPosition(currentTime, true);
+			if (_eyes->readProximity() > _eyes->_peakVoltage) peaked = true;
 		}
-		else //fish is flat; back up
+		else //we're past the peak; make the fish flat & back up
 		{
-			int error = _eyes->_closeVoltage - _eyes->readProximity();
-			if (abs(error) > _eyes->_errorVoltage)
+			//Serial.println("peaked!");
+			static boolean isFlat = false;
+			//Make flat with robot
+			if (!isFlat)
 			{
-				_wheels->driveToNextPosition(currentTime, error > 0);
+				_wheels->driveToNextPosition(currentTime, true);
+				if (_eyes->_IRisConstant) isFlat = true; //once we're close, we're flat
 			}
-			else //The robot is aligned with the fish and is far enough away
+			else //fish is flat; back up
 			{
-				goingState = usingGyro;
-				_wheels->resetIntegral();
-				_wheels->stopMotors();
-				return true;
+				int error = _eyes->_closeVoltage - _eyes->_IRaverage;
+				if (abs(error) < _eyes->_errorVoltage && _eyes->_IRisConstant)
+				{
+					peaked = false;
+					isFlat = false;
+					goingState = usingGyro;
+					_wheels->resetIntegral();
+					_wheels->stopMotors();
+					_eyes->getFishSignature(true);//Set the fish signature 
+					return true;
+				}
+				else //The robot is aligned with the fish and is far enough away
+				{
+					_wheels->driveToNextPosition(currentTime, error > 0);					
+				}
 			}
 		}
 	}
@@ -674,13 +703,12 @@ boolean ASEE2015::dumpFish(unsigned long currentTime)
 	};
 	static DumpFishStates dumpFishState = goingToBin;
 	static boolean readyToDump = false;
-
 	static boolean setStepNum = true;
-	if (setStepNum)
-	{
-		_wheels->_stepNum = 12;
-		setStepNum = false;
-	}
+	//if (setStepNum)
+	//{
+	//	_wheels->_stepNum = 12;
+	//	setStepNum = false;
+	//}
 
 	//if the conveyor has a fish that is unstored, store it no matter what state we're in
 	if (_conveyor->hasFish())

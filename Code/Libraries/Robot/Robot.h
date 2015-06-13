@@ -59,6 +59,8 @@ private:
 
 	int _fishSignature; //The fish signature that the getblock method saw most often before we pick up the fish
 
+	boolean goFinalRun(unsigned long currentTime);
+
 	/**
 	* Uses the PID, pixy, and IR sensor to go to the closest fish and stop in front of it. Returns true when
 	* the IR sensor is close to something. If the pixy doesnt see a fish, it will stop and return false.

@@ -77,7 +77,7 @@ private:
     unsigned long lastUpdateTime;
     const static unsigned long CHECK_MSEC = 1; // Read hardware every 5 msec
     const static unsigned long PRESS_MSEC = 2; // Stable time before registering pressed
-    const static unsigned long RELEASE_MSEC = 10; // Stable time before registering released
+    const static unsigned long RELEASE_MSEC = 6; // Stable time before registering released
 
     enum States
     {

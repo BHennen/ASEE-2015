@@ -30,12 +30,17 @@ public:
 	*/
 	Drivetrain(const byte leftMotorForward, const byte leftMotorBackward, const byte rightMotorForward, const byte rightMotorBackward,
 		int center, byte power,
-		Gyro* gyro, Rotation *rotations, byte turnDeadzone, double robotStopDist, double robotTurnRadius, double robotCenter);
+		Gyro* gyro, Rotation *rotations, byte turnDeadzone, double robotStopDist, double robotTurnRadius, double robotCenter, double lengthToFirstFish);
 
 	/**
 	 * Destructor
 	 */
 	~Drivetrain();
+
+	/**
+	* Make sure everything is good to go before we start
+	*/
+	boolean setup(unsigned long currentTime);
 
 	void resetIntegral();
 
@@ -43,7 +48,7 @@ public:
 	 * Uses PID control to go forward, trying to keep the robot aligned with the desired value passed into the function.
 	 * Returns the error.
 	 */
-	float goUsingPID(float currentValue, float desiredValue, float* PIDconsts, unsigned long currentTime);
+	float goUsingPID(float currentValue, float desiredValue, float* PIDconsts, unsigned long currentTime, bool stationary, bool forwards);
 
 	/**
 	 * Sets the _center of the robot for use in the PID controller.
@@ -60,7 +65,7 @@ public:
 	* Returns false if the robot has not rotated the correct amount, otherwise
 	* returns true when the robot has rotated the required amount.
 	*/
-	boolean rotateDegrees(byte stepNum, byte power);
+	boolean rotateDegrees(byte stepNum, byte power, unsigned long currentTime);
 
 	/**
 	* Rotates an amount based on what step we're on.
@@ -69,17 +74,17 @@ public:
 	* is updated so the next time the function is called it will rotate to the desired degrees.
 	* Uses default power.
 	*/
-	boolean rotateToNextPosition();
+	boolean rotateToNextPosition(unsigned long currentTime);
 
 	/**
 	* Drives to the next position using the PID based on the gyroscope
 	*/
-	void driveToNextPosition(unsigned long currentTime);
+	void driveToNextPosition(unsigned long currentTime, boolean forwards = true);
 
 	/**
 	 * TODO
 	 */
-	double determineNextAngle(Rotation nextFishValues, float currentDegrees);
+	double determineNextAngle(Rotation nextFishValues, unsigned long currentTime);
 
 	/**
 	* Brakes the motors.
@@ -112,6 +117,7 @@ private:
 
 	//Motor variables
 	float _center; //Where the robot aims for the PID control.
+	double _lengthToPrevFish;
 
 	//PID controller variables
 	unsigned long _previousTime;

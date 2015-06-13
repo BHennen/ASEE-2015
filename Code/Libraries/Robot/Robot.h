@@ -54,6 +54,7 @@ private:
 	Gyro* _gyro;
 	Conveyor* _conveyor;
 	Bins* _bins;
+	boolean _readyToGo; //whether or not the robot is ready to go
 	int mode; //What mode the robot is in base on testParam
 
 	int _fishSignature; //The fish signature that the getblock method saw most often before we pick up the fish
@@ -63,6 +64,8 @@ private:
 	* the IR sensor is close to something. If the pixy doesnt see a fish, it will stop and return false.
 	*/
 	boolean goToFishAndStop(unsigned long currentTime);
+
+	boolean goToBinAndStop(unsigned long currentTime);
 
 	/**
 	* Travels around the track collecting all the fish.
@@ -86,6 +89,12 @@ private:
 	* Goes to the each of the bins, repositions, then dumps the fish
 	*/
 	boolean dumpFish(unsigned long currentTime);
+
+	void testConveyorRotate(unsigned long currentTime);
+
+	boolean testBinDumping(unsigned long currentTime);
+
+	boolean setup(unsigned long currentTime);
 };
 
 #endif

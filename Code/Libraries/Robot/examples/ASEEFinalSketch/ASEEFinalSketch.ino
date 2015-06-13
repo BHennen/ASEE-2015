@@ -38,16 +38,21 @@
  *     7     | Test PID. Goes to closest fish seen and stops in front of it, rotates to next| eyes, wheels, gyro             *
  *           | fish seen until all 12 fish have been visited.                               |                                *
  *___________|______________________________________________________________________________|________________________________*
+ *     8     | Test Conveyor rotator. Rotates the conveyor up for 5 sec and down for 5 sec. | conveyor                       *
+ *___________|______________________________________________________________________________|________________________________*
+ *     9     | Test Bins Dumping                                                            | bins                           *
+ *___________|______________________________________________________________________________|________________________________*
+ *     10    | Test Bin Dumping while going around the track                                | all                            *
+ *___________|______________________________________________________________________________|________________________________*
  */
 
-const int testParam = 7;
+const int testParam = 5;
 
 const boolean binsEnabled = false;
 const boolean eyesEnabled = true;
-const boolean conveyorEnabled = false;
+const boolean conveyorEnabled = true;
 const boolean wheelsEnabled = true;
 const boolean gyroEnabled = true;
-
 
 /********
  * PINS *
@@ -63,13 +68,17 @@ const byte DRMotorBackward = 5;
 
 /*** BINS ***/
 
-const byte binServoPin = 10;
+const byte binServoPin = 13;
 
 /*** CONVEYOR ***/
-const byte downwardCMPin = 6;
-const byte upwardCMPin = 7;
+const byte downwardConveyorBeltPin = 7;
+const byte upwardConveyorBeltPin = 6;
+const byte downwardConveyorRotatorPin = 8;
+const byte upwardConveyorRotatorPin = 9;
+const byte rotatorLimitSwitchUpPin = 31;
+const byte rotatorLimitSwitchDownPin = 28;
 const byte frontClawServoPin = 10;
-const byte backClawServoPin = 10;
+const byte backClawServoPin = 12;
 const byte IRPin = A1;
 
 /*************
@@ -80,33 +89,45 @@ const float gyrokp = 4.0f;	//proportional
 const float gyroki = 0.5f;	//integral
 const float gyrokd = 0.5f;	//derivative
 float gyroPIDconsts[3] = { gyrokp, gyroki, gyrokd };
+const float gyroRotatekp = 0.1;
+const float gyroRotateKi = 0;
+const float gyroRotatekd = 0;
+float gyroRotatePIDconsts[3] = { gyroRotatekp, gyroRotateKi, gyroRotatekd };
+
 
 /*** EYES ***/
-const float stopVoltage = 2.8; //Voltage to stop the robot
+const int stopVoltage = 530; //Voltage to stop the robot
+const int closeVoltage = 600; //voltage to position the robot
+const byte errorVoltage = 10;
 const unsigned long pixyStallTime = 300;
-byte getFishSigCount = 30;
-byte errorDeadzone = 5;
-//These values are the weights used to determine a blocks score
+byte getFishSigCount = 100;
+byte errorDeadzone = 2;
+//These values are the weights used to determine a blocks score`
 const float centerConst = 1.0 / 13.75f; //Divide by these random numbers to convert it to inches
 const float bottomLineConst = 0.3 / 2.83;
 float blockScoreConsts[2] = { centerConst, bottomLineConst };
-float minimumBlockScore = 0.0; //lower number is more lenient
-float minimumBlockSize = 250.0;
-float maximumBlockY = 80.0;
+float minimumBlockScore = -300; //lower number is more lenient
+float minimumBlockSize = 300.0;
+float maximumBlockY = 100; //0-199
 
 //Constants for PID controller using pixy
-const float pixykp = 0.3f;	//0.3;	//proportional
-const float pixyki = 0.05f;	//0.05;	//integral
-const float pixykd = 0.09f;	//0.07;	//derivative
-float pixyPIDconsts[3] = { pixykp, pixyki, pixykd };
+const float pixykp = 0.5f;	//proportional
+const float pixyki = 0.05f;	//integral
+const float pixykd = 0.09f;	//derivative
+float pixyPIDconsts[3] = { pixykp, pixyki, pixykd};
+const float pixyRotatekp = 0.2;
+const float pixyRotateKi = 0.1;
+const float pixyRotatekd = 0.1;
+float pixyRotatePIDconsts[3] = { pixyRotatekp, pixyRotateKi, pixyRotatekd };
 
 /*** WHEELS ***/
 //Constants for motors
-const int center = 160; //Where the robot aims when it detects a block. Valid values are 0 - 319.
-const byte drivetrainPower = 65; //How much power for wheel motors. Valid values are 0 - 255.
-const double robotStopDist = 4.0;
-const double robotTurnRadius = 8.0;
-const double robotCenter = 4.0;
+const int center = 140; //Where the robot aims when it detects a block. Valid values are 0 - 319.
+const byte drivetrainPower = 80; //How much power for wheel motors. Valid values are 0 - 255.
+const double robotStopDist = 3;
+const double robotTurnRadius = 7.5;
+const double robotCenter = 3.0;
+const double lengthToFirstFish = 16; //how far the wheels are initially from the first fish
 //Constants for turning
 //struct Rotation
 //{
@@ -119,17 +140,17 @@ Rotation smallAnglePath[19] = { { 0,		16,			0,			0 },//At fish 1, go STRAIGHT to
 								{ 0,		32,			0,			0 },//At fish 2, go STRAIGHT to fish 3
 								{ 0,		16,			0,			0 },//At fish 3, go STRAIGHT to fish 4
 								{ 112.5,	24.492,		1,			0 },//At fish 4, turn SWEEP LEFT to fish 5
-								{ 157.5,	24.492,		1,			0 },//At fish 5, turn SWEEP LEFT to fish 6
+								{ 170,		24.492,		1,			0 },//At fish 5, turn SWEEP LEFT to fish 6
 								{ 270,		16,			0,			0 },//At fish 6, turn RIGHT to fish 7
-								{ 270,		32,			0,			0 },//At fish 7, turn go STRAIGHT to fish 8
-								{ 270,		16,			0,			0 },//At fish 8, turn go STRAIGHT to fish 9
-								{ 22.5,		24.492,		1,			0 },//At fish 9, turn RIGHT to fish 10
-								{ 180,		45.255,		0,			0 },//At fish 10, turn RIGHT to fish 11
-								{ 90,		45.255,		0,			0 },//At fish 11, turn RIGHT to fish 12
-																		//End of fish collection route
-								{ 0,		0,			0,			0 },//At fish 12, turn LEFT to face bin 1
-								{ 0,		0,			0,			0 },//At bin 1, reposition for dumping
-								{ 0,		0,			0,			0 },//At bin 1, face bin 2
+								{ 290,		32,			0,			0 },//At fish 7, turn go STRAIGHT to fish 8
+								{ 290,		16,			0,			0 },//At fish 8, turn go STRAIGHT to fish 9
+								{ 50,		24.492,		1,			0 },//At fish 9, turn RIGHT to fish 10
+								{ 200,		45.255,		0,			0 },//At fish 10, turn RIGHT to fish 11
+								{ 155,		45.255,		0,			0 },//At fish 11, turn RIGHT to fish 12
+								//End of fish collection route
+								{ 155,		16,			0,			0 },//At fish 12, turn LEFT to face bin 1
+								{ 105,		10,			0,			0 },//At bin 1, reposition for dumping
+								{ 170,		67.882251,	0,			0 },//At bin 1, face bin 2
 								{ 0,		0,			0,			0 },//At bin 2, reposition for dumping
 								{ 0,		0,			0,			0 },//At bin 2, face bin 3
 								{ 0,		0,			0,			0 },//At bin 3, reposition for dumping
@@ -140,25 +161,27 @@ const byte turnDeadzone = 1;
 
 /*** CONVEYOR ***/
 //Claw
-const int frontUpwardAngle = 95;
-const int frontDownwardAngle = 20;
-const int backUpwardAngle = 95;
-const int backDownwardAngle = 20;
-const unsigned long clawMovingTime = 200UL; //How long the system should wait before the claw is done opening and closing
-const unsigned long clawRotatingTime = 500UL; //How long the system should wait before the claw is done rotating
+const int frontUpwardAngle = 80;
+const int frontDownwardAngle = 0;
+const int backUpwardAngle = 155;
+const int backDownwardAngle = 75;
+const unsigned long clawMovingTime = 400UL; //How long the system should wait before the claw is done opening and closing
+const unsigned long clawRotatingTime = 250UL; //How long the system should wait before the claw is done rotating
 
 //Conveyor motor powers
-const byte downwardConveyorPower = 150;
-const byte upwardConveyorPower = 150;
+const byte conveyorBeltPower = 150;
+const byte conveyorRotatorUpPower = 175;
+const byte conveyorRotatorDownPower = 75;
+const byte conveyorRotatorStopPower = 100;
 
 //Conveyor positions
-const BinPosition startingPosition = BIN1; //Where the conveyor is when we start off the robot
-const BinPosition restingPosition = BIN1; //Where the conveyor rests when it is out of the way of seeing the fish
+const BinPosition startingPosition = FISH; //Where the conveyor is when we start off the robot
+const BinPosition restingPosition = FISH; //Where the conveyor rests when it is out of the way of seeing the fish
 
 /*** BINS ***/
-const unsigned long binDumpingTime = 10000UL; // how long the bin servo should turn to dump each bin
+const unsigned long binDumpingTime = 2200UL; // how long the bin servo should turn to dump each bin
 const byte binServoStop = 90; //Value for the bin servo to stop moving 
-const byte binServoForward = 180; //Value for the bin servo to move
+const byte binServoForward = 0; //Value for the bin servo to move
 
 /***********
  * MODULES *
@@ -175,14 +198,16 @@ void setup()
 	Serial.begin(9600);
 
 	//Construct objects that are enabled; otherwise set them to nullptrs
-	eyes = (eyesEnabled) ? new VisualSensor(IRPort, stopVoltage, center, errorDeadzone, pixyStallTime,
-		blockScoreConsts, pixyPIDconsts, minimumBlockScore, minimumBlockSize, maximumBlockY,
+	eyes = (eyesEnabled) ? new VisualSensor(IRPort, stopVoltage, closeVoltage, errorVoltage, center, errorDeadzone, pixyStallTime,
+		blockScoreConsts, pixyPIDconsts, pixyRotatePIDconsts, minimumBlockScore, minimumBlockSize, maximumBlockY,
 		getFishSigCount) : 0;
-	gyro = (gyroEnabled) ? new Gyro(gyroPIDconsts) : 0;
+	gyro = (gyroEnabled) ? new Gyro(gyroPIDconsts, gyroRotatePIDconsts) : 0;
 	wheels = (wheelsEnabled) ? new Drivetrain(DLMotorForward, DLMotorBackward, DRMotorForward, DRMotorBackward,
-		center, drivetrainPower, gyro, smallAnglePath, turnDeadzone, robotStopDist, robotTurnRadius, robotCenter) : 0;
+		center, drivetrainPower, gyro, smallAnglePath, turnDeadzone, robotStopDist, robotTurnRadius, robotCenter, lengthToFirstFish) : 0;
 	conveyor = (conveyorEnabled) ? new Conveyor(frontUpwardAngle, frontDownwardAngle, backUpwardAngle, backDownwardAngle,
-		downwardConveyorPower, upwardConveyorPower, downwardCMPin, upwardCMPin,
+		conveyorBeltPower, downwardConveyorBeltPin, upwardConveyorBeltPin,
+		conveyorRotatorUpPower,conveyorRotatorDownPower,conveyorRotatorStopPower,
+		downwardConveyorRotatorPin, upwardConveyorRotatorPin, rotatorLimitSwitchUpPin, rotatorLimitSwitchDownPin,
 		frontClawServoPin, backClawServoPin, IRPin,
 		clawMovingTime, clawRotatingTime, restingPosition, startingPosition) : 0;
 	bins = (binsEnabled) ? new Bins(binServoPin, binServoStop, binServoForward, binDumpingTime) : 0;

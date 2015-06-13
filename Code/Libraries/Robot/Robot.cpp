@@ -8,12 +8,12 @@
 ASEE2015::ASEE2015(int testParam, Drivetrain* driveTrain, VisualSensor* visualSensor, Gyro* gyro, Conveyor* conveyor, Bins* bins)
 {
 	_wheels = driveTrain;
-	_eyes = visualSensor; 
+	_eyes = visualSensor;
 	_gyro = gyro;
 	_conveyor = conveyor;
 	_bins = bins;
 	mode = testParam;
-
+	_readyToGo = false;
 	_fishSignature = 1;
 }
 
@@ -35,6 +35,53 @@ void ASEE2015::allStop()
 }
 
 /**
+ * Make sure all the modules are ready to go.
+ */
+boolean ASEE2015::setup(unsigned long currentTime)
+{
+	boolean eyesReady = false;
+	boolean wheelsReady = false;
+	boolean conveyorReady = false;
+	boolean gyroReady = false;
+	boolean binsReady = false;
+
+	if (_eyes && _conveyor)
+	{
+		if (_conveyor->closeClaw(currentTime) && _eyes->setup(currentTime))
+		{
+			eyesReady = true;
+			if (_conveyor->setup(currentTime))//Set up pixy before conveyor
+			{
+				conveyorReady = true;
+			}
+		}
+	}
+	else if ((!_eyes || _eyes->setup(currentTime)) && (!_conveyor || _conveyor->setup(currentTime)))
+	{
+		eyesReady = true;
+		conveyorReady = true;
+	}
+	if (!_wheels || _wheels->setup(currentTime))
+	{
+		wheelsReady = true;
+	}
+	if (!_gyro || _gyro->setup(currentTime))
+	{
+		gyroReady = true;
+	}
+	if (!_bins || _bins->setup(currentTime))
+	{
+		binsReady = true;
+	}
+	if (eyesReady && wheelsReady && conveyorReady && gyroReady && binsReady)
+	{
+		_readyToGo = true;
+		return true;
+	}
+	else return false;
+}
+
+/**
 * Tell the robot to execute a function based on the value of testParam.
 * Returns true when it has finished the test. And then it stops.
 */
@@ -46,94 +93,151 @@ boolean ASEE2015::go()
 
 	if (!completed)
 	{
-		switch (mode)
+		if (_eyes) _eyes->update(currentTime);
+		if (_gyro) _gyro->update(currentTime);
+		if (_conveyor) _conveyor->update(currentTime);
+
+		if (!_readyToGo)
 		{
-		case 1:
-			if (!printed)
+			setup(currentTime);
+		}
+		else
+		{
+			switch (mode)
 			{
-				Serial.println("Final test of the robot! This is the final product. Goes around the track and");
-				Serial.println("picks up all the fish, storing them inside. Dumps them all off too.");
-				printed = true;
+			case 1:
+				if (!printed)
+				{
+					Serial.println("Final test of the robot! This is the final product. Goes around the track and");
+					Serial.println("picks up all the fish, storing them inside. Dumps them all off too.");
+					printed = true;
+				}
+
+				break;
+			case 2:
+				if (!printed)
+				{
+					Serial.println("Test PID. Goes to closest fish seen and stops in front of it. ");
+					printed = true;
+				}
+				goToFishAndStop(currentTime);
+
+				break;
+			case 3:
+				if (!printed)
+				{
+					Serial.println("Test PID and Conveyor.Goes to closest fish seen, picks it up, and stores it");
+					Serial.println("based on its color.");
+					printed = true;
+				}
+				break;
+			case 4:
+				if (!printed)
+				{
+					Serial.println("Test Conveyor. Picks up a fish and stores it. Has a pattern:");
+					Serial.println("1,2,3,1, 1,2,3,2, 1,2,3,3 ...");
+					printed = true;
+				}
+
+				testConveyor(currentTime, false);
+
+				break;
+			case 5:
+				if (!printed)
+				{
+					Serial.println("Test fishCollection Route. Goes to closest fish seen, picks it up, and stores it");
+					Serial.println("based on its color. Then rotates to next fish and repeats for all the fish.");
+					printed = true;
+				}
+
+				if (collectFish(currentTime)) //collect fish
+				{
+					Serial.println("Collected all fish!");
+					completed = true;
+				}
+				break;
+			case 6:
+				if (!printed)
+				{
+					Serial.println("Test Conveyor.Picks up a fish, determines color using pixy, and stores it.");
+					printed = true;
+				}
+
+				testConveyor(currentTime, true);
+
+				break;
+			case 7:
+				if (!printed)
+				{
+					Serial.println("Test PID. Goes to closest fish seen and stops in front of it, rotates to next one.");
+					printed = true;
+				}
+
+				if (testPIDRotate(currentTime))
+				{
+					completed = true;
+				}
+
+				break;
+			case 8:
+				if (!printed)
+				{
+					Serial.println("Test Conveyor rotator. Rotates the conveyor up for 5 sec and down for 5 sec. ");
+					printed = true;
+				}
+
+				testConveyorRotate(currentTime);
+
+				break;
+			case 9:
+				if (!printed)
+				{
+					Serial.println("Test bin dumping.");
+					printed = true;
+				}
+
+				if (testBinDumping(currentTime))
+				{
+					completed = true;
+				}
+
+				break;
+			case 10:
+				if (!printed)
+				{
+					Serial.println("Test bin dumping going around the track");
+					printed = true;
+				}
+
+				if (dumpFish(currentTime))
+				{
+					completed = true;
+				}
+				break;
 			}
-
-			break;
-		case 2:
-			if (!printed)
-			{
-				Serial.println("Test PID. Goes to closest fish seen and stops in front of it. ");
-				printed = true;
-			}
-			_gyro->update(currentTime);
-			_eyes->isClose(currentTime);//Update IR sensor for fish
-			goToFishAndStop(currentTime);
-
-			break;
-		case 3:
-			if (!printed)
-			{
-				Serial.println("Test PID and Conveyor.Goes to closest fish seen, picks it up, and stores it");
-				Serial.println("based on its color.");
-				printed = true;
-			}
-
-			break;
-		case 4:
-			if (!printed)
-			{
-				Serial.println("Test Conveyor. Picks up a fish and stores it. Has a pattern:");
-				Serial.println("1,2,3,1, 1,2,3,2, 1,2,3,3 ...");
-				printed = true;
-			}
-
-			testConveyor(currentTime, false);
-
-			break;
-		case 5:
-			if (!printed)
-			{
-				Serial.println("Test fishCollection Route. Goes to closest fish seen, picks it up, and stores it");
-				Serial.println("based on its color. Then rotates to next fish and repeats for all the fish.");
-				printed = true;
-			}
-
-			_gyro->update(currentTime); //update gyro
-			if (collectFish(currentTime)) //collect fish
-			{
-				Serial.println("Collected all fish!");
-				completed = true;
-			}
-			break;
-		case 6:
-			if (!printed)
-			{
-				Serial.println("Test Conveyor.Picks up a fish, determines color using pixy, and stores it.");
-				printed = true;
-			}
-
-			testConveyor(currentTime, true);
-
-			break;
-		case 7:
-			if (!printed)
-			{
-				Serial.println("Test PID. Goes to closest fish seen and stops in front of it, rotates to next one.");
-				printed = true;
-			}
-
-			_gyro->update(currentTime);
-			if (testPIDRotate(currentTime))
-			{
-				completed = true;
-			}
-
-			break;
 		}
 	}
 	return completed;
 }
 
+boolean ASEE2015::goToBinAndStop(unsigned long currentTime)
+{
+	//Check if we're close to a bin
+	if (_eyes->_isClose)
+	{
+		_wheels->resetIntegral();
+		_wheels->stopMotors();
+		return true;
+	}
+	else //We're not close
+	{
+		_wheels->driveToNextPosition(currentTime);//use the gyro to go to next bin
+		return false;
+	}
+}
+
 /**
- * Uses the PID, pixy, and IR sensor to go to the closest fish and stop in front of it. Returns true when 
+ * Uses the PID, pixy, and IR sensor to go to the closest fish and stop in front of it. Returns true when
  * the IR sensor is close to something. If the pixy doesnt see a fish, it will stop and return false.
  */
 boolean ASEE2015::goToFishAndStop(unsigned long currentTime)
@@ -143,25 +247,27 @@ boolean ASEE2015::goToFishAndStop(unsigned long currentTime)
 		usingGyro,
 		usingPixy,
 		repositioning,
+		makingFishFlat,
 	};
 	static goingStates goingState = usingGyro;
 	static boolean lockedOn = false;
+	boolean isGoodBlock = false;
+	static double repositionAngle;
+	Block targetBlock;
 
+
+
+	//Check what state we should be in
 	//Check if we're close to a fish
-	if (_eyes->_isClose)
+	if (_eyes->readProximity() > _eyes->_closeVoltage)
 	{
+		//if (goingState != makingFishFlat) _wheels->stopMotors();
+		goingState = makingFishFlat;
+		_eyes->getFishSignature(true);//Set the fish signature 
 		lockedOn = false;
-		goingState = usingGyro;
-		_wheels->resetIntegral();
-		_wheels->stopMotors();
-		return true;
 	}
 	else //We're not close
 	{
-		boolean isGoodBlock = false;
-		Block targetBlock;
-
-		//Check what state we should be in
 		if (!lockedOn)
 		{
 			//Get a block
@@ -170,97 +276,168 @@ boolean ASEE2015::goToFishAndStop(unsigned long currentTime)
 			if (_eyes->isGoodBlock(targetBlock))
 			{
 				isGoodBlock = true;
-				
+
 				//We see a good block BUT the good block is also really close to the robot
 				if (targetBlock.y > _eyes->_maximumBlockY)
 				{
-					goingState = repositioning; //try to reposition by turning to it
-				}
-				else
-				{
-					goingState = usingPixy; //Go to it using the pixy and pid
-				}
-			}
-		}
-
-		//Depending on what state we're in, use a different sensor and technique to go to the fish
-		switch (goingState)
-		{
-		case usingGyro:
-			//Serial.print("Using Gyro. Locked on = "); Serial.println(lockedOn);
-			_wheels->driveToNextPosition(currentTime);
-			break;
-		case usingPixy:
-			//Serial.print("Using Pixy");
-			//Serial.print("\t");
-			//targetBlock.print();
-			static unsigned long previousTime = currentTime;
-
-			//Check if the block is a good one a. If so, go to it.
-			if (isGoodBlock)
-			{
-				previousTime = currentTime; //Reset stall timer
-				if (targetBlock.y > _eyes->_maximumBlockY)
-				{
-					//Check if we are centered with the fish. 
-					if (abs(_eyes->_center - (int)targetBlock.x) < _eyes->_errorDeadzone)
+					if (_eyes->getFishSignature(false) >= 5 && targetBlock.signature == _eyes->_signature)
 					{
-						static int centerCount = 0;
-						static float avgDeg = 0.0;
-						const float newValWeight = 0.1;
-						avgDeg = (centerCount != 0) ? (1 - newValWeight) * avgDeg + newValWeight * _gyro->getDegrees() : _gyro->getDegrees();
-						centerCount++;
-						if (centerCount >= 10)
+						if (goingState != repositioning)
 						{
-							//We are locked on to a fish, go using the gyro now
-							_wheels->drivingDegrees = avgDeg;
+							int blockError = _eyes->_center - (int)targetBlock.x;
+							repositionAngle = _gyro->getDegrees() - (blockError*(75.0f / 320.0f));
+							if (repositionAngle > 360) repositionAngle -= 360;
+							if (repositionAngle < 0) repositionAngle += 360;
 							_wheels->resetIntegral();
-							centerCount = 0;
-							avgDeg = 0.0;
-							lockedOn = true;
-							goingState = usingGyro;
+							goingState = repositioning; //try to reposition by turning to it
 						}
-					}					
+					}
 				}
 				else
 				{
-					_wheels->goUsingPID((float)targetBlock.x, _eyes->_center, _eyes->_PIDconsts, currentTime);
+					if (goingState != usingPixy && goingState != repositioning)
+					{
+						_wheels->resetIntegral();
+						goingState = usingPixy; //Go to it using the pixy and pid
+					}
 				}
-
 			}
-			else if (currentTime - previousTime > _eyes->_pixyStallTime)
-			{
-				//The pixy hasn't seen the good block in a while. Use the gyro now
-				goingState = usingGyro;
-			}
-			break;
-		case repositioning:
-			//Serial.println("Repositioning");
-
-			//Rotate until we are aligned with the fish perfectly. Only used if we are close to the fish and unaligned
-			int error = _eyes->_center - (int)targetBlock.x;
-			
-			//Turn to face the fish
-			if (error < -_eyes->_errorDeadzone)//The error is negative
-			{
-				_wheels->turnRightStationary(_wheels->_power);
-			}
-			else if (error > _eyes->_errorDeadzone) //The error is positive
-			{
-				_wheels->turnLeftStationary(_wheels->_power);
-			}
-			else //There is no error; go forward now using the gyro
-			{
-				//We are locked on to a fish, go using the gyro now
-				_wheels->drivingDegrees = _gyro->getDegrees();
-				lockedOn = true;
-				_wheels->resetIntegral();
-				goingState = usingGyro;
-			}
-			break;
 		}
-		return false;
 	}
+
+	//Depending on what state we're in, use a different sensor and technique to go to the fish
+	switch (goingState)
+	{
+	case usingGyro:
+	{
+		//Serial.print("Using Gyro. Locked on = "); Serial.println(lockedOn);
+		_wheels->driveToNextPosition(currentTime);
+	}
+	break;
+	case usingPixy:
+	{
+		//Serial.println("Using Pixy");
+		//Serial.print("\t");
+		//targetBlock.print();
+		static unsigned long previousTime = currentTime;
+
+		//Check if the block is a good one a. If so, go to it.
+		if (isGoodBlock)
+		{
+			previousTime = currentTime; //Reset stall timer
+			if (targetBlock.y > _eyes->_maximumBlockY)
+			{
+				//Check if we are centered with the fish. 
+				if (abs(_eyes->_center - (int)targetBlock.x) < _eyes->_errorDeadzone)
+				{
+					static int centerCount = 0;
+					static float avgDeg = 0.0;
+					const float newValWeight = 0.1;
+					avgDeg = (centerCount != 0) ? (1 - newValWeight) * avgDeg + newValWeight * _gyro->getDegrees() : _gyro->getDegrees();
+					centerCount++;
+					if (centerCount >= 5)
+					{
+						//We are locked on to a fish, go using the gyro now
+						_wheels->drivingDegrees = avgDeg;
+						_wheels->resetIntegral();
+						centerCount = 0;
+						avgDeg = 0.0;
+						lockedOn = true;
+						goingState = usingGyro;
+					}
+				}
+			}
+			else
+			{
+				_wheels->goUsingPID((float)targetBlock.x, _eyes->_center, _eyes->_PIDconsts, currentTime, false, true);
+			}
+		}
+		else if (currentTime - previousTime > _eyes->_pixyStallTime)
+		{
+			//The pixy hasn't seen the good block in a while. Use the gyro now
+			goingState = usingGyro;
+		}
+	}
+	break;
+	case repositioning:
+	{
+		//Serial.println("Repositioning");
+		static boolean resetting = false;
+		float rotationError = repositionAngle - _gyro->getDegrees();
+		if (rotationError > 180) rotationError -= 360;
+		if (rotationError < -180) rotationError += 360;
+
+		if (abs(rotationError) > 15) //Check if we've rotated past the fish
+		{
+			resetting = true;
+		}
+
+		if (resetting) //Reset back to start position if we've rotated too far from where we started
+		{
+			if (abs(rotationError) < 1)//Check if we've made it to an acceptable spot
+			{
+				_wheels->resetIntegral();
+				resetting = false;
+			}
+			else
+			{
+				_wheels->turnStationary(_wheels->_power, rotationError < 0);
+			}
+		}
+		//Rotate until we are aligned with the fish perfectly. Only used if we are close to the fish and unaligned
+		else if (isGoodBlock)//make sure the block is good
+		{
+			if (_eyes->getFishSignature(false) >= 5 && targetBlock.signature == _eyes->_signature)
+			{
+				int error = (int)targetBlock.x - _eyes->_center;
+
+				if (abs(error) > _eyes->_errorDeadzone)//Turn to face the fish because the error is too large
+				{
+					_wheels->goUsingPID(error, 0, _eyes->_pixyRotatePIDconsts, currentTime, true, true);
+				}
+				else //There is no error; go forward now using the gyro
+				{
+					//We are locked on to a fish, go using the gyro now
+					_wheels->drivingDegrees = _gyro->getDegrees();
+					lockedOn = true;
+					_wheels->resetIntegral();
+					goingState = usingGyro;
+				}
+			}
+		}
+	}
+	break;
+	case makingFishFlat: //make the fish flat somehow
+	{
+		//Serial.println("making fish flat");
+		
+		const unsigned long fishFlatteningTime = 500;
+		static boolean isFlat = true;
+
+		//Make flat with robot
+		if (!isFlat)
+		{
+			if (_eyes->_isClose) isFlat = true; //once we're close, we're flat
+		}
+		else //fish is flat; back up
+		{
+			int error = _eyes->_closeVoltage - _eyes->readProximity();
+			if (abs(error) > _eyes->_errorVoltage)
+			{
+				_wheels->driveToNextPosition(currentTime, error > 0);
+			}
+			else //The robot is aligned with the fish and is far enough away
+			{
+				goingState = usingGyro;
+				_wheels->resetIntegral();
+				_wheels->stopMotors();
+				return true;
+			}
+		}
+	}
+	break;
+	}
+	return false;
 }
 
 /**
@@ -285,8 +462,6 @@ boolean ASEE2015::collectFish(unsigned long currentTime)
 	{
 		_conveyor->storeFish(_fishSignature, currentTime);
 	}
-	
-	_eyes->isClose(currentTime);//Update IR sensor for fish
 
 	//Check what state we're in
 	switch (collectFishState)
@@ -297,7 +472,6 @@ boolean ASEE2015::collectFish(unsigned long currentTime)
 			printed = true;
 			Serial.println("going to fish");
 		}
-
 		if (goToFishAndStop(currentTime)) //go to the next fish and stop
 		{
 			//We've made it to the fish. Now go to the pick up fish state
@@ -317,17 +491,16 @@ boolean ASEE2015::collectFish(unsigned long currentTime)
 		{
 			if (!fishSigRecorded) //We've stored the previous fish and are ready to accept the new one. Record its signature
 			{
-				_eyes->getFishSignature(true);				
 				_fishSignature = _eyes->_signature;
-				fishSigRecorded = true;				
-			}			
+				fishSigRecorded = true;
+			}
 			if (_conveyor->pickUpFish(currentTime))
 			{
 				//We've picked up the fish and are ready to dump the fish and rotate and drive to next one			
 				fishSigRecorded = false; //Reset fish signature state for next time
 				collectFishState = rotatingToNextFish; // now rotate to next fish
 				printed = false;
-			}			
+			}
 		}
 		break;
 	case rotatingToNextFish: //We have now picked up a fish. Rotate to the next position
@@ -335,11 +508,11 @@ boolean ASEE2015::collectFish(unsigned long currentTime)
 		if (!printed)
 		{
 			printed = true;
-			Serial.println("rotating to next fish");
+			//Serial.println("rotating to next fish");
 		}
 
 		// rotate to next position
-		if (_wheels->rotateToNextPosition())
+		if (_wheels->rotateToNextPosition(currentTime))
 		{
 			//We've rotated to the correct position
 			collectFishState = drivingToNextFish; //Set state for next time
@@ -363,11 +536,10 @@ boolean ASEE2015::collectFish(unsigned long currentTime)
 * otherwise it goes in a set pattern.
 */
 void ASEE2015::testConveyor(unsigned long currentTime, boolean usePixy)
-{	
+{
 	static unsigned long previousTime = currentTime;
 	unsigned long getFishSigTime = 2000UL;
 	static boolean determiningFishSig = true;
-	
 	if (usePixy)
 	{
 		if (currentTime - previousTime >= getFishSigTime)
@@ -385,7 +557,7 @@ void ASEE2015::testConveyor(unsigned long currentTime, boolean usePixy)
 		//Drop a fish off if we have one
 		if (_conveyor->hasFish())
 		{
-			if(_conveyor->storeFish(_fishSignature, currentTime)) //Check when we've stored the fish.
+			if (_conveyor->storeFish(_fishSignature, currentTime)) //Check when we've stored the fish.
 			{
 				//If not using pixy, increment fish signature or reset it to 1 if it is 4
 				if (!usePixy)
@@ -400,7 +572,7 @@ void ASEE2015::testConveyor(unsigned long currentTime, boolean usePixy)
 			}
 		}
 		else //conveyor doesn't have a fish. Pick it up
-		{			
+		{
 			if (_conveyor->pickUpFish(currentTime) && usePixy)
 			{
 				_eyes->getFishSignature(true);
@@ -429,8 +601,6 @@ boolean ASEE2015::testPIDRotate(unsigned long currentTime)
 	static unsigned long previousTime = currentTime;
 	unsigned long delayTime = 2000UL;
 
-	_eyes->isClose(currentTime);//Update IR sensor for fish
-
 	//Check what state we're in
 	switch (collectFishState)
 	{
@@ -449,7 +619,7 @@ boolean ASEE2015::testPIDRotate(unsigned long currentTime)
 			previousTime = currentTime;
 		}
 		break;
-	case delaying:	
+	case delaying:
 		if (!printed)
 		{
 			printed = true;
@@ -462,7 +632,6 @@ boolean ASEE2015::testPIDRotate(unsigned long currentTime)
 		}
 		break;
 	case rotatingToNextFish: //We have now picked up a fish. Rotate to the next position
-		//Serial.println("im here");
 		if (!printed)
 		{
 			printed = true;
@@ -470,7 +639,7 @@ boolean ASEE2015::testPIDRotate(unsigned long currentTime)
 		}
 
 		// rotate to next position
-		if (_wheels->rotateToNextPosition())
+		if (_wheels->rotateToNextPosition(currentTime))
 		{
 			//We've rotated to the correct position
 			collectFishState = drivingToNextFish; //Set state for next time
@@ -506,29 +675,38 @@ boolean ASEE2015::dumpFish(unsigned long currentTime)
 	static DumpFishStates dumpFishState = goingToBin;
 	static boolean readyToDump = false;
 
-	_eyes->isClose(currentTime);//Update IR sensor for fish
+	static boolean setStepNum = true;
+	if (setStepNum)
+	{
+		_wheels->_stepNum = 12;
+		setStepNum = false;
+	}
 
 	//if the conveyor has a fish that is unstored, store it no matter what state we're in
 	if (_conveyor->hasFish())
 	{
 		_conveyor->storeFish(_fishSignature, currentTime);
 	}
-	else if (!readyToDump && _conveyor->goToBin(FISH, currentTime)) //make sure the conveyor is in the fish position
+	else if (!readyToDump) //make sure the conveyor is in the fish position
 	{
-		readyToDump = true; //conveyor does not have a fish and is in the fish position, we're ready to dump
+		boolean one = _conveyor->goToBin(FISH, currentTime);
+		boolean two = _conveyor->rotateConveyor(false, currentTime);
+		boolean three = _conveyor->rotateClaw(currentTime, false);
+		boolean four = _conveyor->closeClaw(currentTime);
+		if (one && two && three && four) readyToDump = true; //conveyor does not have a fish and is in the fish position, we're ready to dump
 	}
 
 	switch (dumpFishState)
 	{
 	case goingToBin:
-		_eyes->_stopVoltage = 2.4; // set new stopping point
-		if (goToFishAndStop(currentTime)) //drive to bin and stop in front of it
+		_eyes->_stopVoltage = 400; // set new stopping point
+		if (goToBinAndStop(currentTime)) //drive to bin and stop in front of it
 		{
 			dumpFishState = rotating1;
 		}
 		break;
 	case rotating1:
-		if(_wheels->rotateToNextPosition()) //rotate to align with where we want to be
+		if (_wheels->rotateToNextPosition(currentTime)) //rotate to align with where we want to be
 		{
 			dumpFishState = repositioning;
 		}
@@ -551,11 +729,82 @@ boolean ASEE2015::dumpFish(unsigned long currentTime)
 		}
 		break;
 	case rotating2:
-		if (_wheels->rotateToNextPosition()) //rotate to the next bin position
+		if (_wheels->rotateToNextPosition(currentTime)) //rotate to the next bin position
 		{
 			dumpFishState = goingToBin;
 		}
 		break;
 	}
 	return false;
+}
+
+void ASEE2015::testConveyorRotate(unsigned long currentTime)
+{
+	static unsigned long previousTime = currentTime;
+	static unsigned long timer = 5000; //5 sec for up/down
+	static boolean conveyorDown = true;
+	static boolean setup = true;
+	if (setup)
+	{
+		Serial.println("Setup...");
+		if (_conveyor->rotateConveyor(true, currentTime))
+		{
+			Serial.println("Done!");
+			setup = false;
+			conveyorDown = true;
+			previousTime = currentTime;
+		}
+	}
+	else
+	{
+		//rotate up when conveyor has been down for 5 sec
+		if (conveyorDown && currentTime - previousTime > timer)
+		{
+			if (_conveyor->rotateConveyor(false, currentTime))
+			{
+				conveyorDown = false;
+				previousTime = currentTime; //reset time
+			}
+		}
+		//rotate down when conveyor has been up for 5 sec
+		else if (!conveyorDown && currentTime - previousTime > timer)
+		{
+			if (_conveyor->rotateConveyor(true, currentTime))
+			{
+				conveyorDown = true;
+				previousTime = currentTime; //reset time
+			}
+		}
+	}
+}
+
+boolean ASEE2015::testBinDumping(unsigned long currentTime)
+{
+	static unsigned long previousTime = currentTime;
+	unsigned long timer = 3000;
+	static boolean dumping = true;
+	if (dumping) //dump
+	{
+		if (_bins->dumpNextBin(currentTime))
+		{
+			dumping = false;
+			previousTime = currentTime; //reset timer
+		}
+	}
+	else //wait
+	{
+		if (currentTime - previousTime > timer)
+		{
+			dumping = true;
+		}
+	}
+
+	if (_bins->_numDumped >= _bins->NUM_BINS)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
 }

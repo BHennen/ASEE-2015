@@ -9,8 +9,8 @@
  * _stopVoltage: Set the stop voltage; The robot should stop whenever the
  *               input voltage from the IR sensor is greater than this voltage.
  */
-VisualSensor::VisualSensor(const char IRPort, const float stopVoltage, int center, byte errorDeadzone, unsigned long pixyStallTime,
-	float* blockScoreConsts, float* PIDconsts, float minimumBlockScore, float minimumBlockSize, float maximumBlockY,
+VisualSensor::VisualSensor(const char IRPort, const int stopVoltage, const int closeVoltage, byte errorVoltage, int center, byte errorDeadzone, unsigned long pixyStallTime,
+	float* blockScoreConsts, float* PIDconsts, float* pixyRotatePIDconsts, float minimumBlockScore, float minimumBlockSize, float maximumBlockY,
 	byte getFishSigCount)
 {
 	//Set all the badBlock's values to -1
@@ -33,6 +33,7 @@ VisualSensor::VisualSensor(const char IRPort, const float stopVoltage, int cente
 	_center = center;
 	_pixyStallTime = pixyStallTime;
 	_PIDconsts = PIDconsts;
+	_pixyRotatePIDconsts = pixyRotatePIDconsts;
 	_signature = 1;
 	_getFishSigCount = getFishSigCount;
 
@@ -46,6 +47,8 @@ VisualSensor::VisualSensor(const char IRPort, const float stopVoltage, int cente
 	//Set IR Port
 	_IRPort = IRPort;
 	_stopVoltage = stopVoltage;
+	_closeVoltage = closeVoltage;
+	_errorVoltage = errorVoltage;
 	_isClose = false;
 
 	_errorDeadzone = errorDeadzone;
@@ -58,12 +61,25 @@ VisualSensor::~VisualSensor()
 {
 }
 
-//Finds the distance of the hypotenuse of the block's x and y coordinates to the center bottom of the pixy
-float VisualSensor::getHypotenuse(Block block)
+/**
+* Make sure everything is good to go before we start
+*/
+boolean VisualSensor::setup(unsigned long currentTime)
 {
-	int xDist = abs(_center - block.x); //Find distance of block's x to the center
-	float value = (float)sqrt(sq(xDist) + sq(block.y));
-	return value;
+	//make sure the pixy can see some blocks before we go.
+	static int numBlocksRead = 0;
+	if (numBlocksRead < _getFishSigCount)
+	{
+		if (isGoodBlock(getBlock(currentTime))) //read a block from pixy
+		{
+			numBlocksRead++;
+		}
+		return false;
+	}
+	else //once we've read enough blocks, we're done setting up
+	{
+		return true;
+	}
 }
 
 boolean VisualSensor::isGoodBlock(Block targetBlock)
@@ -153,8 +169,8 @@ Block VisualSensor::getBlock(unsigned long currentTime)
 	if (block.signature != badBlock.signature)
 	{
 		if (maxScore > _minimumBlockScore)
-		{
-			//getBlockScore(block,true);
+		{			
+			//getBlockScore(block, true);
 			incrementBlocks(block);
 			return block;
 		}
@@ -201,22 +217,22 @@ int VisualSensor::getFishSignature(boolean resetCounts)
  * so we convert this number into a float from 0.0 to 5.0 volts. Return true if it is
  * in the voltage range we want.
  */
-void VisualSensor::isClose(unsigned long currentTime)
+void VisualSensor::update(unsigned long currentTime)
 {
 	static unsigned long previousTime = currentTime;
 	static boolean debouncedIR = false;
-	unsigned long CHECK_MSEC = 1;
-	unsigned long RELEASE_MSEC = 10;
-	unsigned long PRESS_MSEC = 10;
+	const unsigned long CHECK_MSEC = 1;
+	const unsigned long PRESS_MSEC = 3;
+	const unsigned long RELEASE_MSEC = 3;
 
 	if (currentTime - previousTime >= CHECK_MSEC)
 	{
 		previousTime = currentTime;
 		static uint8_t count = RELEASE_MSEC / CHECK_MSEC;
 
-		float voltage = analogRead(_IRPort) * (5.0 / 1023.0);
-		boolean rawState = (voltage > _stopVoltage);
-
+		int voltage = readProximity();
+		int error = _stopVoltage - voltage;
+		boolean rawState = (abs(error) < _errorVoltage);
 		if (rawState == debouncedIR)
 		{
 			// Set the timer which allows a change from current state.
@@ -236,7 +252,9 @@ void VisualSensor::isClose(unsigned long currentTime)
 			}
 		}
 	}
+	Serial.print("\t");
 	_isClose = debouncedIR;
+	Serial.println(_isClose);
 }
 
 boolean VisualSensor::detectIRChange(unsigned long currentTime)
@@ -319,16 +337,17 @@ boolean VisualSensor::detectIRChange(unsigned long currentTime)
 /**
  * Read the value from the IRsensor port and converts it into a value from 0.0 - 5.0 volts.
  */
-float VisualSensor::readProximity()
+int VisualSensor::readProximity()
 {
-	float voltage = analogRead(_IRPort) * (5.0f / 1023.0f);
+	int voltage = analogRead(_IRPort);
 	return voltage;
 }
 
 //Constructor
-Gyro::Gyro(float* PIDconsts)
+Gyro::Gyro(float* PIDconsts, float* rotatePIDconsts)
 {
 	_PIDconsts = PIDconsts;
+	_rotatePIDconsts = rotatePIDconsts;
 
 	Serial.println("beginning gyro...");
 	Wire.begin();
@@ -343,6 +362,8 @@ Gyro::Gyro(float* PIDconsts)
 
 	previousTime = 0UL;
 	angleZ = 0.0f;
+	_offSetAngle = 0.0;
+	averageTimedBias = 0.0;
 
 	//Read values from eeprom
 	//Read averageBiasZ
@@ -367,11 +388,22 @@ Gyro::~Gyro()
 }
 
 /**
+* Make sure everything is good to go before we start
+*/
+boolean Gyro::setup(unsigned long currentTime)
+{
+	return true; //gyro needs no setup
+}
+
+/**
 * Returns the current heading of the robot in degrees, based on the initial heading of the robot. (0 <= degrees < 360)
 */
 float Gyro::getDegrees()
 {
-	return angleZ;
+	float correctAngle = angleZ + _offSetAngle;
+	if (correctAngle > 360) correctAngle -= 360;
+	if (correctAngle < 0) correctAngle += 360;
+	return correctAngle;
 }
 
 /**
@@ -385,7 +417,7 @@ void Gyro::update(unsigned long currentTime)
 	previousTime = currentTime;
 
 	//find current rate of rotation
-	float rateZ = ((float)gyro.g.z - averageBiasZ);
+	float rateZ = ((float)gyro.g.z - averageBiasZ); //-averagetimebias
 	if (abs(rateZ) < 3 * sigmaZ)
 	{
 		rateZ = 0.0f;

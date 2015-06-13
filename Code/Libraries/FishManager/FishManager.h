@@ -18,10 +18,18 @@ class Conveyor
 {
 public:
 	Conveyor(int frontUpwardAngle, int frontDownwardAngle, int backUpwardAngle, int backDownwardAngle,
-		byte downwardConveyorPower, byte upwardConveyorPower, byte downwardConveyorMotorPin, byte upwardConveyorMotorPin,
+		byte conveyorBeltPower, byte downwardConveyorBeltPin, byte upwardConveyorBeltPin,
+		byte conveyorRotatorUpPower, byte conveyorRotatorDownPower, byte conveyorRotatorStopPower,
+		byte downwardConveyorRotatorPin, byte upwardConveyorRotatorPin, byte rotatorLimitSwitchUpPin, byte rotatorLimitSwitchDownPin,
 		byte frontClawServoPin, byte backClawServoPin, byte IRPin,
 		unsigned long clawMovingTime, unsigned long clawRotatingTime, BinPosition restingPosition, BinPosition startingPosition);
     ~Conveyor();
+
+	/**
+	* Make sure everything is good to go before we start
+	*/
+	boolean setup(unsigned long currentTime);
+
     boolean goToBin(BinPosition binPosition, unsigned long currentTime);
     /**
      * From the resting position, the conveyor moves to the fish position and picks up the fish.
@@ -37,6 +45,13 @@ public:
     boolean storeFish(byte fishSignature, unsigned long currentTime);
     //Returns whether or not the conveyor has a fish
     boolean hasFish();
+	/**
+	* Rotate the conveyor upward or downward and return true when it has done so.
+	*/
+	boolean rotateConveyor(boolean rotateDownwards, unsigned long currentTime);
+
+	void update(unsigned long currentTime);
+
     //claw
 	/*
 	* Rotate the claw up or down, based on the position it was in previously
@@ -51,6 +66,11 @@ public:
     boolean _switchPressed;
     BinPosition currentPosition;
 private:
+	boolean _conveyorIsDown;
+	boolean _conveyorIsRotating;
+	boolean _rotatingDown;
+	boolean downLimitSwitchPressed();
+	boolean upLimitSwitchPressed();
     //limit switch
     boolean _debouncedKeyPress; // This holds the debounced state of the key.
 
@@ -67,16 +87,27 @@ private:
         goingToRest
     };
 
+	enum Rotation
+	{
+		upwards,
+		downwards
+	};
     //pins
-	byte _downwardConveyorMotorPin;
-	byte _upwardConveyorMotorPin;
+	byte _downwardConveyorBeltPin;
+	byte _upwardConveyorBeltPin;
+	byte _downwardConveyorRotatorPin;
+	byte _upwardConveyorRotatorPin;
     byte _frontClawServoPin;
     byte _backClawServoPin;
     byte _IRPin;
+	byte _rotatorLimitSwitchUpPin;
+	byte _rotatorLimitSwitchDownPin;
 
     //motor speeds
-    int _downwardMotorSpeed;
-    int _upwardMotorSpeed;
+    byte _conveyorBeltPower;
+	byte _conveyorRotatorUpPower;
+	byte _conveyorRotatorDownPower;
+	byte _conveyorRotatorStopPower;
 
     //claw angles
     int _frontUpwardAngle  ;
@@ -104,12 +135,16 @@ private:
     byte _nextSig4Bin;
 };
 
-
 class Bins
 {
 public:
     Bins(byte binServoPin, byte binServoStop, byte binServoForward, unsigned long binDumpingTime);
     ~Bins();
+	/**
+	* Make sure everything is good to go before we start
+	*/
+	boolean setup(unsigned long currentTime);
+
     boolean dumpNextBin(unsigned long currentTime);
     const static byte NUM_BINS = 3;
     int _numDumped;

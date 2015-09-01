@@ -17,7 +17,7 @@ enum BinPosition : int
 class Conveyor
 {
 public:
-	Conveyor(int frontUpwardAngle, int frontDownwardAngle, int backUpwardAngle, int backDownwardAngle,
+	Conveyor(int frontUpwardAngle, int frontDownwardAngle, int backUpwardAngle, int backDownwardAngle, int backExtendedAngle,
 		byte conveyorBeltPower, byte downwardConveyorBeltPin, byte upwardConveyorBeltPin,
 		byte conveyorRotatorUpPower, byte conveyorRotatorDownPower, byte conveyorRotatorStopPower,
 		byte downwardConveyorRotatorPin, byte upwardConveyorRotatorPin, byte rotatorLimitSwitchUpPin, byte rotatorLimitSwitchDownPin,
@@ -57,7 +57,7 @@ public:
 	* Rotate the claw up or down, based on the position it was in previously
 	*/
 	boolean rotateClaw(unsigned long currentTime, boolean rotateUp);
-    boolean openClaw(unsigned long currentTime);
+	boolean openClaw(unsigned long currentTime, boolean extended = false);
     boolean closeClaw(unsigned long currentTime);
     //limit Switch
     void updateSwitch(unsigned long currentTime);
@@ -77,7 +77,7 @@ private:
     unsigned long lastUpdateTime;
     const static unsigned long CHECK_MSEC = 1; // Read hardware every 5 msec
     const static unsigned long PRESS_MSEC = 2; // Stable time before registering pressed
-    const static unsigned long RELEASE_MSEC = 6; // Stable time before registering released
+    const static unsigned long RELEASE_MSEC = 35; // Stable time before registering released
 
     enum States
     {
@@ -114,6 +114,7 @@ private:
     int _backUpwardAngle   ;
     int _frontDownwardAngle;
     int _backDownwardAngle ;
+	int _backExtendedAngle;
 
     //claw states
     Servo frontClawServo;
@@ -121,6 +122,7 @@ private:
     boolean clawIsClosed;
     boolean clawIsMoving;
 	boolean _clawRotatedUp;
+	boolean clawIsRotating;
 	unsigned long _clawRotatingTime;
     unsigned long _clawMovingTime;
 

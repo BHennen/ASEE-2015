@@ -95,7 +95,6 @@ boolean ASEE2015::go()
 	{
 		if (_eyes) _eyes->update(currentTime);
 		if (_gyro) _gyro->update(currentTime);
-		if (_conveyor) _conveyor->update(currentTime);
 
 		if (!_readyToGo)
 		{
@@ -240,7 +239,7 @@ boolean ASEE2015::goFinalRun(unsigned long currentTime)
 boolean ASEE2015::goToBinAndStop(unsigned long currentTime)
 {
 	//Check if we're close to a bin
-	if (_eyes->_isClose)
+	if (_eyes->_IRaverage >= _eyes->_stopVoltage)
 	{
 		_wheels->resetIntegral();
 		_wheels->stopMotors();
@@ -272,57 +271,59 @@ boolean ASEE2015::goToFishAndStop(unsigned long currentTime)
 	static double repositionAngle;
 	Block targetBlock;
 	static boolean peaked = false;
-
+	static byte	tempPower = _wheels->_power;
 
 
 	//Check what state we should be in
 	//Check if the IR sensor peaked
-	if (!peaked && _eyes->readProximity() > _eyes->_peakVoltage)
+	if (goingState != makingFishFlat)
 	{
-		//if (goingState != makingFishFlat) _wheels->stopMotors();
-		peaked = true;
-		goingState = makingFishFlat;
-		lockedOn = false;
-	}
-	else //We're not close
-	{
-		if (!lockedOn)
+		if (!peaked && _eyes->readProximity() > _eyes->_peakVoltage)
 		{
-			//Get a block
-			targetBlock = _eyes->getBlock(currentTime);
-			//If the block is a valid block
-			if (_eyes->isGoodBlock(targetBlock))
+			//if (goingState != makingFishFlat) _wheels->stopMotors();
+			peaked = true;
+			goingState = makingFishFlat;
+			lockedOn = false;
+		}
+		else //We're not close
+		{
+			if (!lockedOn && goingState != makingFishFlat)
 			{
-				isGoodBlock = true;
-
-				//We see a good block BUT the good block is also really close to the robot
-				if (targetBlock.y > _eyes->_maximumBlockY)
+				//Get a block
+				targetBlock = _eyes->getBlock(currentTime);
+				//If the block is a valid block
+				if (_eyes->isGoodBlock(targetBlock))
 				{
-					if (_eyes->getFishSignature(false) >= 5 && targetBlock.signature == _eyes->_signature)
+					isGoodBlock = true;
+
+					//We see a good block BUT the good block is also really close to the robot
+					if (targetBlock.y > _eyes->_maximumBlockY)
 					{
-						if (goingState != repositioning)
+						if (_eyes->getFishSignature(false) >= 5 && targetBlock.signature == _eyes->_signature)
 						{
-							int blockError = _eyes->_center - (int)targetBlock.x;
-							repositionAngle = _gyro->getDegrees() - (blockError*(75.0f / 320.0f));
-							if (repositionAngle > 360) repositionAngle -= 360;
-							if (repositionAngle < 0) repositionAngle += 360;
-							_wheels->resetIntegral();
-							goingState = repositioning; //try to reposition by turning to it
+							if (goingState != repositioning)
+							{
+								int blockError = _eyes->_center - (int)targetBlock.x;
+								repositionAngle = _gyro->getDegrees() - (blockError*(75.0f / 320.0f));
+								if (repositionAngle > 360) repositionAngle -= 360;
+								if (repositionAngle < 0) repositionAngle += 360;
+								_wheels->resetIntegral();
+								goingState = repositioning; //try to reposition by turning to it
+							}
 						}
 					}
-				}
-				else
-				{
-					if (goingState != usingPixy && goingState != repositioning)
+					else
 					{
-						_wheels->resetIntegral();
-						goingState = usingPixy; //Go to it using the pixy and pid
+						if (goingState != usingPixy && goingState != repositioning)
+						{
+							_wheels->resetIntegral();
+							goingState = usingPixy; //Go to it using the pixy and pid
+						}
 					}
 				}
 			}
 		}
 	}
-
 	//Depending on what state we're in, use a different sensor and technique to go to the fish
 	switch (goingState)
 	{
@@ -427,28 +428,61 @@ boolean ASEE2015::goToFishAndStop(unsigned long currentTime)
 	break;
 	case makingFishFlat: //make the fish flat somehow
 	{
-		//Serial.println("making fish flat");
-		//Serial.println(_eyes->readProximity());
+		static boolean setPower = true;
+		static boolean reverse = false;
+
+		if (setPower)
+		{
+			_wheels->_power *= 0.6;
+			setPower = false;
+		}
 		if (!peaked)
 		{
-			_wheels->driveToNextPosition(currentTime, true);
-			if (_eyes->readProximity() > _eyes->_peakVoltage) peaked = true;
+			_wheels->driveToNextPosition(currentTime, !reverse);
+			if (_eyes->_IRaverage > _eyes->_peakVoltage) peaked = true;
 		}
 		else //we're past the peak; make the fish flat & back up
 		{
-			//Serial.println("peaked!");
 			static boolean isFlat = false;
 			//Make flat with robot
 			if (!isFlat)
-			{
+			{				
+				static unsigned long driveTimer = currentTime;
+				const unsigned long driveTime = 300;
+				static boolean isConstant = false;
 				_wheels->driveToNextPosition(currentTime, true);
-				if (_eyes->_IRisConstant) isFlat = true; //once we're close, we're flat
+				if (!isConstant)
+				{
+					if (_eyes->_IRisConstant) isConstant = true;
+					driveTimer = currentTime;
+				}
+				else//once we're constant, go forward some more
+				{
+					if (currentTime - driveTimer <= driveTime)
+					{
+						_wheels->driveToNextPosition(currentTime, true);
+					}
+					else
+					{
+						isFlat = true; 
+						isConstant = false;
+						peaked = false;
+						reverse = true;
+					}
+				}
 			}
 			else //fish is flat; back up
-			{
+			{		
+				//Serial.println("flat");
 				int error = _eyes->_closeVoltage - _eyes->_IRaverage;
-				if (abs(error) < _eyes->_errorVoltage && _eyes->_IRisConstant)
+				//Serial.print(_eyes->_IRaverage);
+				//Serial.print("\t");
+				//Serial.println(error);
+				if (abs(error) < _eyes->_errorVoltage)
 				{
+					_wheels->_power = tempPower;
+					setPower = true;
+					reverse = false;
 					peaked = false;
 					isFlat = false;
 					goingState = usingGyro;
@@ -487,10 +521,18 @@ boolean ASEE2015::collectFish(unsigned long currentTime)
 	static boolean printed = false;
 
 	//if the conveyor has a fish that is unstored, store it no matter what state we're in
-	if (_conveyor->hasFish())
+	if (collectFishState != rotatingToNextFish)
 	{
-		_conveyor->storeFish(_fishSignature, currentTime);
+		_conveyor->update(currentTime);
+		if (_conveyor->hasFish())
+		{
+			_conveyor->storeFish(_fishSignature, currentTime);
+		}
 	}
+	else
+	{
+		_conveyor->stop();
+	}	
 
 	//Check what state we're in
 	switch (collectFishState)
@@ -550,7 +592,7 @@ boolean ASEE2015::collectFish(unsigned long currentTime)
 		}
 		break;
 	}
-	if (numFishCollected >= 12)
+	if (numFishCollected >= 5)
 	{
 		return true; //We've collected all twelve fish. Return true
 	}
@@ -566,6 +608,7 @@ boolean ASEE2015::collectFish(unsigned long currentTime)
 */
 void ASEE2015::testConveyor(unsigned long currentTime, boolean usePixy)
 {
+	_conveyor->updateSwitch(currentTime);
 	static unsigned long previousTime = currentTime;
 	unsigned long getFishSigTime = 2000UL;
 	static boolean determiningFishSig = true;
@@ -629,6 +672,11 @@ boolean ASEE2015::testPIDRotate(unsigned long currentTime)
 	static boolean printed = false;
 	static unsigned long previousTime = currentTime;
 	unsigned long delayTime = 2000UL;
+
+	if (collectFishState != rotatingToNextFish)
+	{
+		_conveyor->update(currentTime);
+	}
 
 	//Check what state we're in
 	switch (collectFishState)
@@ -703,12 +751,7 @@ boolean ASEE2015::dumpFish(unsigned long currentTime)
 	};
 	static DumpFishStates dumpFishState = goingToBin;
 	static boolean readyToDump = false;
-	static boolean setStepNum = true;
-	//if (setStepNum)
-	//{
-	//	_wheels->_stepNum = 12;
-	//	setStepNum = false;
-	//}
+	_conveyor->update(currentTime);
 
 	//if the conveyor has a fish that is unstored, store it no matter what state we're in
 	if (_conveyor->hasFish())
@@ -727,16 +770,17 @@ boolean ASEE2015::dumpFish(unsigned long currentTime)
 	switch (dumpFishState)
 	{
 	case goingToBin:
-		_eyes->_stopVoltage = 400; // set new stopping point
+		Serial.println("going to bin");
 		if (goToBinAndStop(currentTime)) //drive to bin and stop in front of it
 		{
 			dumpFishState = rotating1;
 		}
 		break;
 	case rotating1:
+		Serial.println("repositioning");
 		if (_wheels->rotateToNextPosition(currentTime)) //rotate to align with where we want to be
 		{
-			dumpFishState = repositioning;
+			dumpFishState = dumping;
 		}
 		break;
 	case repositioning:
@@ -744,17 +788,27 @@ boolean ASEE2015::dumpFish(unsigned long currentTime)
 		dumpFishState = dumping;
 		break;
 	case dumping:
+		Serial.println("dumping");
 		if (readyToDump) //check if we're ready to dump
 		{
 			if (_bins->dumpNextBin(currentTime)) //dump the next bin
 			{
-				if (_bins->_numDumped == _bins->NUM_BINS) //Check if we dumped all the bins
+				Serial.println("bin1 dumped");
+				if (_bins->dumpNextBin(currentTime)) //dump the next bin
 				{
-					return true;
+					Serial.println("bin2 dumped");
+
+					if (_bins->dumpNextBin(currentTime)) //dump the next bin
+					{
+						Serial.println("bin3 dumped");
+
+						dumpFishState = rotating2;
+						return true;
+					}
 				}
-				dumpFishState = rotating2;
 			}
 		}
+
 		break;
 	case rotating2:
 		if (_wheels->rotateToNextPosition(currentTime)) //rotate to the next bin position

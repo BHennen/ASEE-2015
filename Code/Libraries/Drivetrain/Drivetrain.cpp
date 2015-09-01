@@ -209,6 +209,8 @@ boolean Drivetrain::rotateDegrees(byte stepNum, byte power, unsigned long curren
 
 	if (!_isRotating) //If the robot is not currently rotating and this method is called, determine the values needed for the upcoming rotation
 	{
+		Serial.println(stepNum);
+		Serial.println(_desiredDegrees);
 
 		//Set the robots required degrees based on the initial degrees and the degrees required by the step
 		//Increments desired degrees by what step we're on. So if we turn right 45 deg and left 45 deg, it will be back at the initial heading(which is what we want)
@@ -299,6 +301,12 @@ void Drivetrain::driveToNextPosition(unsigned long currentTime, boolean forwards
 	//Calculate the angle between the driving degrees and current degrees.
 	//After corrections, negative diff means the robot should turn left. positive means it should turn right.
 	float diff = drivingDegrees - currentDegrees;
+	//Serial.print(drivingDegrees);
+	//Serial.print("\t");
+	//Serial.print(currentDegrees);
+	//Serial.print("\t");
+	//Serial.println(diff);
+
 	if (diff > 180.0f) diff -= 360;
 	if (diff < -180.0f) diff += 360;
 

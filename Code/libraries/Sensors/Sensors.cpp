@@ -239,7 +239,7 @@ void VisualSensor::update(unsigned long currentTime)
 
 		//find the exponential average
 	
-		const float newValueWeight = 0.3;
+		const float newValueWeight = 0.5;
 		_IRaverage = (_IRaverage > 0) ? (1 - newValueWeight) * _IRaverage + newValueWeight * _proximity : _proximity;
 
 		//find if the IR is constant
@@ -424,6 +424,7 @@ Gyro::~Gyro()
 */
 boolean Gyro::setup(unsigned long currentTime)
 {
+	angleZ = 0; //reset angle until we're ready
 	return true; //gyro needs no setup
 }
 

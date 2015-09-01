@@ -1,6 +1,6 @@
 #include "FishManager.h"
 
-Conveyor::Conveyor(int frontUpwardAngle, int frontDownwardAngle, int backUpwardAngle, int backDownwardAngle,
+Conveyor::Conveyor(int frontUpwardAngle, int frontDownwardAngle, int backUpwardAngle, int backDownwardAngle, int backExtendedAngle,
 	byte conveyorBeltPower, byte downwardConveyorBeltPin, byte upwardConveyorBeltPin,
 	byte conveyorRotatorUpPower, byte conveyorRotatorDownPower, byte conveyorRotatorStopPower,
 	byte downwardConveyorRotatorPin, byte upwardConveyorRotatorPin, byte rotatorLimitSwitchUpPin, byte rotatorLimitSwitchDownPin,
@@ -44,6 +44,7 @@ Conveyor::Conveyor(int frontUpwardAngle, int frontDownwardAngle, int backUpwardA
 	_frontDownwardAngle = frontDownwardAngle;
 	_backUpwardAngle = backUpwardAngle;
 	_backDownwardAngle = backDownwardAngle;
+	_backExtendedAngle = backExtendedAngle;
 	_clawMovingTime = clawMovingTime;
 	_clawRotatingTime = clawRotatingTime;
 	_restingPosition = restingPosition;
@@ -78,12 +79,12 @@ Conveyor::~Conveyor()
 */
 boolean Conveyor::setup(unsigned long currentTime)
 {
+	//Serial.println(_clawRotatedUp);
 	boolean one = rotateConveyor(false, currentTime);
-	boolean two = rotateClaw(currentTime,false);
-	boolean three = closeClaw(currentTime);
-
+	boolean two = closeClaw(currentTime);
+	boolean three = rotateClaw(currentTime, false);
+	
 	return one && two && three; //Make sure the claw and conveyor are in the correct position before we go
-
 }
 
 void Conveyor::update(unsigned long currentTime)
@@ -151,9 +152,6 @@ void Conveyor::stop()
 	//Stop the conveyor
 	analogWrite(_downwardConveyorBeltPin, 0);
 	analogWrite(_upwardConveyorBeltPin, 0);
-	//Open the claw
-	frontClawServo.write(_frontUpwardAngle);
-	backClawServo.write(_backDownwardAngle);
 }
 
 //Called when we go to the bin. Used to debounce the IR sensor
@@ -162,31 +160,32 @@ void Conveyor::updateSwitch(unsigned long currentTime)
 	_switchChanged = false;
 	_switchPressed = _debouncedKeyPress;
 
-	if (currentTime - lastUpdateTime >= CHECK_MSEC)
+	boolean rawState = digitalRead(_IRPin);
+	rawState = !rawState;
+	lastUpdateTime = currentTime;
+	static unsigned long timer = 0;
+	//Serial.print(rawState);
+	//Serial.print("\t");
+	//Serial.print(_debouncedKeyPress);
+	//Serial.print("\t");
+	//Serial.println(currentTime - timer);
+	if (rawState == _debouncedKeyPress)
 	{
-		boolean rawState = digitalRead(_IRPin);
-		rawState = !rawState;
-		lastUpdateTime = currentTime;
-		static uint8_t count = RELEASE_MSEC / CHECK_MSEC;
+		// Set the timer which allows a change from current state.
+		timer = currentTime;
+	}
+	else
+	{
+		//Serial.print("raw changed: \t"); Serial.print(rawState); Serial.print("\t");
+		// Key has changed - wait for new state to become stable.
+		unsigned long stableTime = (_debouncedKeyPress == 0) ? PRESS_MSEC : RELEASE_MSEC;
 
-		if (rawState == _debouncedKeyPress)
+		if (currentTime - timer >= stableTime)
 		{
-			// Set the timer which allows a change from current state.
-			if (_debouncedKeyPress) count = RELEASE_MSEC / CHECK_MSEC;
-			else count = PRESS_MSEC / CHECK_MSEC;
-		}
-		else
-		{
-			// Key has changed - wait for new state to become stable.
-			if (--count == 0) {
-				// Timer expired - accept the change.
-				_debouncedKeyPress = rawState;
-				_switchChanged = true;
-				_switchPressed = _debouncedKeyPress;
-				// And reset the timer.
-				if (_debouncedKeyPress) count = RELEASE_MSEC / CHECK_MSEC;
-				else count = PRESS_MSEC / CHECK_MSEC;
-			}
+			// Timer expired - accept the change.
+			_debouncedKeyPress = rawState;
+			_switchChanged = true;
+			_switchPressed = _debouncedKeyPress;
 		}
 	}
 }
@@ -294,6 +293,7 @@ boolean Conveyor::upLimitSwitchPressed()
  */
 boolean Conveyor::rotateConveyor(boolean rotateDownwards, unsigned long currentTime)
 {
+	Serial.println(upLimitSwitchPressed());
 	if (rotateDownwards) //rotate downwards
 	{
 		//Check if we're at the bottom
@@ -358,7 +358,7 @@ boolean Conveyor::pickUpFish(unsigned long currentTime)
 	switch (_pickUpState)
 	{
 	case preparingToPickUp: //make sure the system is ready to pick up a fish
-		if (openClaw(currentTime))
+		if (openClaw(currentTime, false))
 		{
 			if (rotateClaw(currentTime, false)) //Make sure the claw is rotated downward
 			{
@@ -376,7 +376,7 @@ boolean Conveyor::pickUpFish(unsigned long currentTime)
 		break;
 	case movingClaw: //The claw is in the correct position
 		rotateConveyor(true, currentTime); //rotate conveyor downward
-				
+
 		if (_conveyorIsDown && closeClaw(currentTime)) //make sure the conveyor is down and close the claw on the fish
 		{
 			//claw is closed, now rotate it upwards
@@ -426,23 +426,25 @@ boolean Conveyor::storeFish(byte fishSignature, unsigned long currentTime)
 	{
 		switch (fishSignature)
 		{
-		case 1: correctBin = BIN1;
+		case 1: correctBin = BIN2;
 			break;
 		case 2: correctBin = BIN2;
 			break;
 		case 3: correctBin = BIN3;
 			break;
-		case 4:
-			switch (_nextSig4Bin)
-			{
-			case 1: correctBin = BIN1;
-				break;
-			case 2: correctBin = BIN2;
-				break;
-			case 3: correctBin = BIN3;
-				break;
-			}
+		case 4: correctBin = BIN3;
 			break;
+		//case 4:
+		//	switch (_nextSig4Bin)
+		//	{
+		//	case 1: correctBin = BIN1;
+		//		break;
+		//	case 2: correctBin = BIN2;
+		//		break;
+		//	case 3: correctBin = BIN3;
+		//		break;
+		//	}
+		//	break;
 		}
 		determineCorrectBin = false;
 	}
@@ -463,7 +465,7 @@ boolean Conveyor::storeFish(byte fishSignature, unsigned long currentTime)
 			_dropOffState = movingClaw;
 		}
 	}
-		break;
+	break;
 	case movingClaw: //drop off the fish
 	{
 		static unsigned long rotateTimer = currentTime;
@@ -475,11 +477,11 @@ boolean Conveyor::storeFish(byte fishSignature, unsigned long currentTime)
 			{
 				rotateTimer = currentTime;
 				setTimer = false;
-		
+
 			}
 			if (currentTime - rotateTimer >= rotateTime)
 			{
-				if (openClaw(currentTime))
+				if (openClaw(currentTime, (correctBin == 1 || correctBin == 2)))
 				{
 					if (rotateClaw(currentTime, true))
 					{
@@ -491,22 +493,22 @@ boolean Conveyor::storeFish(byte fishSignature, unsigned long currentTime)
 			}
 		}
 	}
-		break;
+	break;
 	case goingToRest: //Go back to the resting position
 	{
-		closeClaw(currentTime);
-
+		
+		if (!(correctBin == 1 || correctBin == 2)) closeClaw(currentTime);
 		static boolean rotateClawDown = false;
-		if (!_switchPressed && currentPosition <= 1)//Rotate claw & close it before getting to fish position
+		if (_switchPressed && currentPosition == 0)//Rotate claw & close it before getting to fish position
 		{
 			rotateClawDown = true;
 		}
 		if (rotateClawDown)
 		{
-			if (closeClaw(currentTime))	rotateClaw(currentTime, false);
+			if(closeClaw(currentTime)) rotateClaw(currentTime,false);
 		}
 
-		if (goToBin(_restingPosition, currentTime))
+		if (goToBin(_restingPosition, currentTime) && !_clawRotatedUp && clawIsClosed)
 		{
 			//the conveyor is now at the resting position and out of the way of the pixy and other sensors.
 			rotateClawDown = false;
@@ -526,51 +528,74 @@ boolean Conveyor::storeFish(byte fishSignature, unsigned long currentTime)
 */
 boolean Conveyor::rotateClaw(unsigned long currentTime, boolean rotateUp)
 {
+	static boolean clawIsRotating = false;
 	static unsigned long numPartialRotations;
 	const unsigned long delayBetweenRotations = 5;
+	static int timer = 0;
+	static unsigned long rotateTimer = currentTime;
+	//Serial.print(timer);
+	//Serial.print(clawIsClosed);
+	//Serial.print(clawIsRotating);
+	//Serial.println("rotating");
 	static int count = 0;
 	if (_clawRotatedUp == rotateUp) //The claw is already rotated to the desired position, return true
 	{
+		//Serial.println("rotated up already");
 		count = 0;
 		return true;
 	}
 	else if (!clawIsClosed) // the claw is open; no need to rotate it
 	{
+		//Serial.println("claw is open");
+
 		_clawRotatedUp = rotateUp; //Set it so the claw is in the desired state
 		count = 0;
 		return true;
 	}
-	else if (!clawIsMoving) //The claw is closed, is in the incorrect position, and it is not in the process of moving
+	else if (!clawIsRotating) //The claw is closed, is in the incorrect position, and it is not in the process of moving
 	{
+		//Serial.println("claw rotating already");
+
 		numPartialRotations = _clawRotatingTime / delayBetweenRotations / 2; //set the number of partial rotations
 
-		previousTime = currentTime; //set the timer to allow them time to rotate
-		clawIsMoving = true; //the claw is now in the process of moving
+		rotateTimer = currentTime; //set the timer to allow them time to rotate
+		clawIsRotating = true; //the claw is now in the process of moving
 		return false;
 	}
 	else //The claw is still rotating
 	{
+		//Serial.println("claw still rotating");
+
+		//Serial.println(timer);
 		//Move the servos to the upward position , one at a time
-		if (currentTime - previousTime >= delayBetweenRotations)
+		if (currentTime - rotateTimer >= delayBetweenRotations)
 		{
+			timer++;
 			static boolean rotateBack = rotateUp;
-			previousTime = currentTime;
+			rotateTimer = currentTime;
 
 			//move the servos to the desired rotation
 			if (rotateUp)
 			{
 				if (rotateBack)
 				{
-					count++;
-					int deltaAngle = _backUpwardAngle - _backDownwardAngle;
-					backClawServo.write(_backDownwardAngle + count*deltaAngle / numPartialRotations); //tell the back claw to go to upward angle
-					rotateBack = false;
+					if (timer == 1)
+					{
+						count++;
+						int deltaAngle = _backUpwardAngle - _backDownwardAngle;
+						backClawServo.write(_backDownwardAngle + count*deltaAngle / numPartialRotations); //tell the back claw to go to upward angle
+						rotateBack = false;
+					}
 				}
 				else
 				{
-					int deltaAngle = _frontUpwardAngle - _frontDownwardAngle;
-					frontClawServo.write(_frontDownwardAngle + count*deltaAngle / numPartialRotations); //tell the front claw to go to upward angle
-					rotateBack = true;
+					if (timer == 4)
+					{
+						int deltaAngle = _frontUpwardAngle - _frontDownwardAngle;
+						frontClawServo.write(_frontDownwardAngle + count*deltaAngle / numPartialRotations); //tell the front claw to go to upward angle
+						rotateBack = true;
+						timer = 0;
+					}
 				}
 
 			}
@@ -579,28 +604,36 @@ boolean Conveyor::rotateClaw(unsigned long currentTime, boolean rotateUp)
 				//Move the servos to the downward position 
 				if (!rotateBack)
 				{
-					//move the front claw first
-					count++;
-					int deltaAngle = _frontUpwardAngle - _frontDownwardAngle;
-					frontClawServo.write(_frontUpwardAngle - count*deltaAngle / numPartialRotations); //tell the front claw to go to downward angle
-					rotateBack = true;
+					if (timer == 1)
+					{
+						//move the front claw first
+						count++;
+						int deltaAngle = _frontUpwardAngle - _frontDownwardAngle;
+						frontClawServo.write(_frontUpwardAngle - count*deltaAngle / numPartialRotations); //tell the front claw to go to downward angle
+						rotateBack = true;
+					}
 				}
 				else
 				{
-					int deltaAngle = _backUpwardAngle - _backDownwardAngle;
-					backClawServo.write(_backUpwardAngle - count*deltaAngle / numPartialRotations); //tell the back claw to go to downward angle
-					rotateBack = false;
+					if (timer == 4)
+					{
+						int deltaAngle = _backUpwardAngle - _backDownwardAngle;
+						backClawServo.write(_backUpwardAngle - count*deltaAngle / numPartialRotations); //tell the back claw to go to downward angle
+						rotateBack = false;
+						timer = 0;
+					}
 				}
 			}
 		}
 		if (count >= numPartialRotations)
 		{
 			count = 0;
+			timer = 0;
 			_clawRotatedUp = rotateUp;
-			clawIsMoving = false;
+			clawIsRotating = false;
 			return true;
 
-			Serial.println("high count");
+			//Serial.println("high count");
 		}
 		return false;
 	}
@@ -611,8 +644,11 @@ boolean Conveyor::rotateClaw(unsigned long currentTime, boolean rotateUp)
  */
 boolean Conveyor::closeClaw(unsigned long currentTime)
 {
+	//Serial.println("closing claw");
+	static unsigned long closeTimer = currentTime;
 	if (clawIsClosed) //The claw is already closed
 	{
+
 		return true;
 	}
 	else if (!clawIsMoving) //The claw is open and it is not in the process of moving
@@ -627,11 +663,11 @@ boolean Conveyor::closeClaw(unsigned long currentTime)
 			frontClawServo.write(_frontDownwardAngle); //tell the front claw to go to downward angle
 			backClawServo.write(_backDownwardAngle); //tell the back claw to go to downward angle
 		}
-		previousTime = currentTime; //set the timer
+		closeTimer = currentTime; //set the timer
 		clawIsMoving = true; //the claw is now in the process of moving
 		return false;
 	}
-	else if (currentTime - previousTime >= _clawMovingTime) //The claw has been closing for long enough so it should be fully closed now
+	else if (currentTime - closeTimer >= _clawMovingTime) //The claw has been closing for long enough so it should be fully closed now
 	{
 		clawIsClosed = true;
 		clawIsMoving = false;
@@ -646,7 +682,7 @@ boolean Conveyor::closeClaw(unsigned long currentTime)
 /**
  * Opens the claw
  */
-boolean Conveyor::openClaw(unsigned long currentTime)
+boolean Conveyor::openClaw(unsigned long currentTime, boolean extended)
 {
 	if (!clawIsClosed) //The claw is already open
 	{
@@ -654,8 +690,16 @@ boolean Conveyor::openClaw(unsigned long currentTime)
 	}
 	else if (!clawIsMoving) //The claw is closed and it is not in the process of moving
 	{
-		backClawServo.write(_backDownwardAngle); //tell the back claw to go to downward angle
-		frontClawServo.write(_frontUpwardAngle); //tell the front claw to go to upward angle
+		if (!extended)
+		{
+			backClawServo.write(_backDownwardAngle); //tell the back claw to go to downward angle
+			frontClawServo.write(_frontUpwardAngle); //tell the front claw to go to upward angle
+		}
+		else
+		{
+			backClawServo.write(_backExtendedAngle); //tell the back claw to go to downward angle
+			frontClawServo.write(_frontUpwardAngle); //tell the front claw to go to upward angle
+		}
 
 		previousTime = currentTime; //set the timer 
 		clawIsMoving = true; //the claw is now in the process of moving
@@ -696,16 +740,17 @@ boolean Bins::setup(unsigned long currentTime)
 
 boolean Bins::dumpNextBin(unsigned long currentTime)
 {
+	static unsigned long binDumpTimer = currentTime;
 	if (!isDumping && _numDumped < NUM_BINS) //If we haven't started turning the motors (this function was just called) and we have more bins to dump
 	{
 		//start dumping 
 		Serial.println("start dumping");
 		binServo.write(_binServoForward);
 		isDumping = true;
-		previousTime = currentTime;
+		binDumpTimer = currentTime;
 		return false;
 	}
-	else if ((currentTime - previousTime) >= _binDumpingTime) //We have turned the motors long enough
+	else if ((currentTime - binDumpTimer) >= _binDumpingTime) //We have turned the motors long enough
 	{
 		binServo.write(_binServoStop); //stop motor
 		isDumping = false;

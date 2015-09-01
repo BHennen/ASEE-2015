@@ -16,7 +16,7 @@ float gyroPIDconsts[3] = { gyrokp, gyroki, gyrokd };
 void setup()
 {
 	Serial.begin(9600);
-	gyro = new Gyro(gyroPIDconsts);
+	gyro = new Gyro(gyroPIDconsts,gyroPIDconsts);
 }
 
 void loop()
